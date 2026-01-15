@@ -16,13 +16,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MetaTokenDialog } from "@/components/dashboard/MetaTokenDialog";
 
 const Accounts = () => {
   const { accounts, isLoading, deleteAccount, syncAccount } = useAdAccounts();
-  const { isConnecting, connectMeta, connectGoogle, handleOAuthCallback } = useOAuthConnect();
+  const { isConnecting, connectMetaToken, connectGoogle, handleOAuthCallback } = useOAuthConnect();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [metaTokenDialogOpen, setMetaTokenDialogOpen] = useState(false);
 
   // Handle OAuth callback
   useEffect(() => {
@@ -111,7 +113,7 @@ const Accounts = () => {
         {/* Connection Options */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <button
-            onClick={connectMeta}
+            onClick={() => setMetaTokenDialogOpen(true)}
             disabled={isConnecting}
             className="stat-card group cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -279,6 +281,14 @@ const Accounts = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Meta Token Dialog */}
+      <MetaTokenDialog
+        open={metaTokenDialogOpen}
+        onOpenChange={setMetaTokenDialogOpen}
+        onSubmit={connectMetaToken}
+        isLoading={isConnecting}
+      />
     </div>
   );
 };
