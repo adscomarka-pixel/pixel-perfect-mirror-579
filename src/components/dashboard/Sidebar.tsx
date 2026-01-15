@@ -1,11 +1,12 @@
 import { cn } from "@/lib/utils";
-import { BarChart3, Bell, FileText, Home, Link2, LogOut, Settings } from "lucide-react";
+import { BarChart3, Bell, FileText, Home, Link2, LogOut, Settings, Users } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const navigation = [
+const baseNavigation = [
   { name: "Visão Geral", href: "/dashboard", icon: Home },
   { name: "Relatórios", href: "/dashboard/reports", icon: FileText },
   { name: "Alertas", href: "/dashboard/alerts", icon: Bell },
@@ -13,11 +14,20 @@ const navigation = [
   { name: "Configurações", href: "/dashboard/settings", icon: Settings },
 ];
 
+const adminNavigation = [
+  { name: "Usuários", href: "/dashboard/users", icon: Users },
+];
+
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isAdmin } = useUserRole();
   const [profile, setProfile] = useState<{ full_name: string | null; company_name: string | null } | null>(null);
+
+  const navigation = isAdmin 
+    ? [...baseNavigation, ...adminNavigation]
+    : baseNavigation;
 
   useEffect(() => {
     const fetchProfile = async () => {
