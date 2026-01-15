@@ -14,7 +14,185 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ad_accounts: {
+        Row: {
+          access_token: string
+          account_id: string
+          account_name: string
+          alert_enabled: boolean | null
+          balance: number | null
+          created_at: string
+          daily_spend: number | null
+          email: string | null
+          id: string
+          last_sync_at: string | null
+          min_balance_alert: number | null
+          platform: string
+          refresh_token: string | null
+          status: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          account_id: string
+          account_name: string
+          alert_enabled?: boolean | null
+          balance?: number | null
+          created_at?: string
+          daily_spend?: number | null
+          email?: string | null
+          id?: string
+          last_sync_at?: string | null
+          min_balance_alert?: number | null
+          platform: string
+          refresh_token?: string | null
+          status?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          account_id?: string
+          account_name?: string
+          alert_enabled?: boolean | null
+          balance?: number | null
+          created_at?: string
+          daily_spend?: number | null
+          email?: string | null
+          id?: string
+          last_sync_at?: string | null
+          min_balance_alert?: number | null
+          platform?: string
+          refresh_token?: string | null
+          status?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      alerts: {
+        Row: {
+          ad_account_id: string | null
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          sent_at: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          sent_at?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          sent_at?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_settings: {
+        Row: {
+          balance_alerts_enabled: boolean | null
+          created_at: string
+          default_min_balance: number | null
+          email_notifications: boolean | null
+          id: string
+          report_day: string | null
+          report_time: string | null
+          telegram_chat_id: string | null
+          updated_at: string
+          user_id: string
+          weekly_report_enabled: boolean | null
+          whatsapp_group_id: string | null
+        }
+        Insert: {
+          balance_alerts_enabled?: boolean | null
+          created_at?: string
+          default_min_balance?: number | null
+          email_notifications?: boolean | null
+          id?: string
+          report_day?: string | null
+          report_time?: string | null
+          telegram_chat_id?: string | null
+          updated_at?: string
+          user_id: string
+          weekly_report_enabled?: boolean | null
+          whatsapp_group_id?: string | null
+        }
+        Update: {
+          balance_alerts_enabled?: boolean | null
+          created_at?: string
+          default_min_balance?: number | null
+          email_notifications?: boolean | null
+          id?: string
+          report_day?: string | null
+          report_time?: string | null
+          telegram_chat_id?: string | null
+          updated_at?: string
+          user_id?: string
+          weekly_report_enabled?: boolean | null
+          whatsapp_group_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
