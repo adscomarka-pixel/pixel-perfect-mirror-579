@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 import { BarChart3, Bell, FileText, Home, Link2, LogOut, Settings } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const navigation = [
   { name: "Visão Geral", href: "/dashboard", icon: Home },
@@ -12,6 +15,40 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [profile, setProfile] = useState<{ full_name: string | null; company_name: string | null } | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name, company_name")
+          .eq("user_id", user.id)
+          .single();
+        setProfile(data);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/auth");
+  };
+
+  const getInitials = () => {
+    if (profile?.full_name) {
+      return profile.full_name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+    }
+    return user?.email?.slice(0, 2).toUpperCase() || "U";
+  };
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-sidebar border-r border-sidebar-border">
@@ -52,13 +89,23 @@ export function Sidebar() {
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 p-2">
             <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center">
-              <span className="text-sm font-semibold text-sidebar-accent-foreground">CM</span>
+              <span className="text-sm font-semibold text-sidebar-accent-foreground">
+                {getInitials()}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">Carlos Marketing</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">carlos@agencia.com</p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">
+                {profile?.full_name || "Usuário"}
+              </p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">
+                {user?.email || ""}
+              </p>
             </div>
-            <button className="p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors">
+            <button 
+              onClick={handleLogout}
+              className="p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+              title="Sair"
+            >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
