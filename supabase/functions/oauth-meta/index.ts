@@ -46,7 +46,12 @@ Deno.serve(async (req) => {
 
     if (action === 'get_auth_url') {
       const scope = 'ads_management,ads_read,business_management'
-      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code`
+      // Use state parameter for CSRF protection and to pass platform info
+      const state = crypto.randomUUID()
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code&state=${state}`
+      
+      console.log('Meta OAuth URL generated:', authUrl)
+      console.log('Redirect URI:', redirectUri)
       
       return new Response(
         JSON.stringify({ authUrl }),
