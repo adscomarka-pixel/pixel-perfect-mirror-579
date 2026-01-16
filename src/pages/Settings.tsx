@@ -3,13 +3,135 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Bell, Calendar, FileText, Mail, Save, User } from "lucide-react";
-import { useState } from "react";
+import { Bell, Calendar, FileText, Loader2, Mail, Save, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const Settings = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  // Form state
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [phone, setPhone] = useState("");
   const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(true);
   const [balanceAlertEnabled, setBalanceAlertEnabled] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [reportDay, setReportDay] = useState("monday");
+  const [reportTime, setReportTime] = useState("09:00");
+  const [defaultMinBalance, setDefaultMinBalance] = useState("500");
+
+  // Fetch profile data
+  const { data: profile, isLoading: loadingProfile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch notification settings
+  const { data: notificationSettings, isLoading: loadingSettings } = useQuery({
+    queryKey: ['notification-settings', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('notification_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Populate form with fetched data
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setCompanyName(profile.company_name || "");
+      setPhone(profile.phone || "");
+    }
+    if (user?.email) {
+      setEmail(user.email);
+    }
+  }, [profile, user]);
+
+  useEffect(() => {
+    if (notificationSettings) {
+      setWeeklyReportEnabled(notificationSettings.weekly_report_enabled ?? true);
+      setBalanceAlertEnabled(notificationSettings.balance_alerts_enabled ?? true);
+      setEmailNotifications(notificationSettings.email_notifications ?? true);
+      setReportDay(notificationSettings.report_day || "monday");
+      setReportTime(notificationSettings.report_time || "09:00");
+      setDefaultMinBalance(String(notificationSettings.default_min_balance || 500));
+    }
+  }, [notificationSettings]);
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+
+      // Update or insert profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          full_name: fullName,
+          company_name: companyName,
+          phone: phone,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+      if (profileError) throw profileError;
+
+      // Update or insert notification settings
+      const { error: settingsError } = await supabase
+        .from('notification_settings')
+        .upsert({
+          user_id: user.id,
+          weekly_report_enabled: weeklyReportEnabled,
+          balance_alerts_enabled: balanceAlertEnabled,
+          email_notifications: emailNotifications,
+          report_day: reportDay,
+          report_time: reportTime,
+          default_min_balance: parseFloat(defaultMinBalance) || 500,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+      if (settingsError) throw settingsError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['notification-settings'] });
+      toast.success("Configurações salvas com sucesso!");
+    },
+    onError: (error) => {
+      toast.error("Erro ao salvar: " + error.message);
+    },
+  });
+
+  const handleSave = () => {
+    saveMutation.mutate();
+  };
+
+  const isLoading = loadingProfile || loadingSettings;
 
   return (
     <div className="min-h-screen bg-background">
@@ -37,19 +159,40 @@ const Settings = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome</Label>
-                <Input id="name" defaultValue="Carlos Marketing" />
+                <Input 
+                  id="name" 
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Seu nome completo"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue="carlos@agencia.com" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  value={email}
+                  disabled
+                  className="bg-muted"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="company">Empresa</Label>
-                <Input id="company" defaultValue="CMK Agência Digital" />
+                <Input 
+                  id="company" 
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Nome da empresa"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input id="phone" defaultValue="+55 11 99999-9999" />
+                <Input 
+                  id="phone" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+55 11 99999-9999"
+                />
               </div>
             </div>
           </div>
@@ -85,7 +228,8 @@ const Settings = () => {
                   <select
                     id="reportDay"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    defaultValue="monday"
+                    value={reportDay}
+                    onChange={(e) => setReportDay(e.target.value)}
                   >
                     <option value="monday">Segunda-feira</option>
                     <option value="tuesday">Terça-feira</option>
@@ -96,7 +240,12 @@ const Settings = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reportTime">Horário</Label>
-                  <Input id="reportTime" type="time" defaultValue="09:00" />
+                  <Input 
+                    id="reportTime" 
+                    type="time" 
+                    value={reportTime}
+                    onChange={(e) => setReportTime(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
@@ -142,7 +291,12 @@ const Settings = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="defaultMinBalance">Limite Mínimo Padrão (R$)</Label>
-                <Input id="defaultMinBalance" type="number" defaultValue="500" />
+                <Input 
+                  id="defaultMinBalance" 
+                  type="number" 
+                  value={defaultMinBalance}
+                  onChange={(e) => setDefaultMinBalance(e.target.value)}
+                />
                 <p className="text-xs text-muted-foreground">
                   Este valor será usado como padrão para novas contas conectadas
                 </p>
@@ -152,8 +306,17 @@ const Settings = () => {
 
           {/* Save Button */}
           <div className="flex justify-end">
-            <Button variant="hero" size="lg">
-              <Save className="w-4 h-4 mr-2" />
+            <Button 
+              variant="hero" 
+              size="lg"
+              onClick={handleSave}
+              disabled={saveMutation.isPending || isLoading}
+            >
+              {saveMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
               Salvar Configurações
             </Button>
           </div>
