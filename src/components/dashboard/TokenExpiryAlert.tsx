@@ -1,143 +1,90 @@
-import { AlertTriangle, Clock, Key, X } from "lucide-react";
-import { useState } from "react";
+import { Key } from "lucide-react";
 import { useExpiringTokens, ExpiringToken } from "@/hooks/useExpiringTokens";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
-function getExpiryMessage(token: ExpiringToken): string {
-  if (token.daysUntilExpiry <= 0) {
-    return `Token expirado! Reconecte agora.`;
-  } else if (token.daysUntilExpiry === 1) {
-    return `Expira amanhã`;
-  } else {
-    return `Expira em ${token.daysUntilExpiry} dias`;
-  }
+const MAX_DAYS = 60; // Token duration in days
+
+function getProgressPercentage(daysUntilExpiry: number): number {
+  if (daysUntilExpiry <= 0) return 0;
+  return Math.min(100, Math.max(0, (daysUntilExpiry / MAX_DAYS) * 100));
 }
 
-function getStatusStyles(status: ExpiringToken['status']) {
-  switch (status) {
-    case 'critical':
-      return {
-        bg: 'bg-destructive/10 border-destructive/30',
-        icon: 'text-destructive',
-        text: 'text-destructive',
-      };
-    case 'warning':
-      return {
-        bg: 'bg-warning/10 border-warning/30',
-        icon: 'text-warning',
-        text: 'text-warning',
-      };
-    case 'expiring_soon':
-      return {
-        bg: 'bg-accent/10 border-accent/30',
-        icon: 'text-accent',
-        text: 'text-accent',
-      };
+function getProgressColor(daysUntilExpiry: number): string {
+  if (daysUntilExpiry <= 0) return 'bg-destructive';
+  if (daysUntilExpiry <= 3) return 'bg-destructive';
+  if (daysUntilExpiry <= 7) return 'bg-warning';
+  if (daysUntilExpiry <= 14) return 'bg-amber-500';
+  if (daysUntilExpiry <= 30) return 'bg-accent';
+  return 'bg-success';
+}
+
+function getExpiryText(token: ExpiringToken): string {
+  if (token.daysUntilExpiry <= 0) {
+    return 'Expirado!';
+  } else if (token.daysUntilExpiry === 1) {
+    return 'Expira amanhã';
+  } else {
+    return `${token.daysUntilExpiry} dias restantes`;
   }
 }
 
 export function TokenExpiryAlert() {
-  const { expiringTokens, hasExpiringTokens, criticalCount } = useExpiringTokens();
-  const [dismissed, setDismissed] = useState<string[]>([]);
+  const { expiringTokens } = useExpiringTokens();
   const navigate = useNavigate();
 
-  if (!hasExpiringTokens) return null;
-
-  // Filter out dismissed alerts (but never dismiss critical ones)
-  const visibleTokens = expiringTokens.filter(
-    t => t.status === 'critical' || !dismissed.includes(t.id)
-  );
-
-  if (visibleTokens.length === 0) return null;
-
-  const handleDismiss = (id: string) => {
-    setDismissed(prev => [...prev, id]);
-  };
+  // Show all tokens that have expiry dates (not just expiring ones)
+  // We need to fetch all accounts with tokens to show the progress bars
+  
+  if (expiringTokens.length === 0) return null;
 
   const handleRenew = () => {
     navigate('/dashboard/accounts');
   };
 
-  // Show summary banner if multiple tokens are expiring
-  if (visibleTokens.length > 2) {
-    const styles = criticalCount > 0 
-      ? getStatusStyles('critical') 
-      : getStatusStyles('warning');
-
-    return (
-      <div className={`rounded-lg border p-4 mb-6 ${styles.bg}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg bg-background/50 flex items-center justify-center`}>
-              <AlertTriangle className={`w-5 h-5 ${styles.icon}`} />
-            </div>
-            <div>
-              <h4 className={`font-semibold ${styles.text}`}>
-                {criticalCount > 0 
-                  ? `${criticalCount} token(s) expirado(s) ou expirando em breve!`
-                  : `${visibleTokens.length} tokens expirando em breve`
-                }
-              </h4>
-              <p className="text-sm text-muted-foreground">
-                Renove seus tokens para manter o monitoramento ativo
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleRenew}>
-            <Key className="w-4 h-4 mr-2" />
-            Renovar Tokens
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Show individual alerts for 1-2 tokens
   return (
     <div className="space-y-3 mb-6">
-      {visibleTokens.map((token) => {
-        const styles = getStatusStyles(token.status);
+      {expiringTokens.map((token) => {
+        const percentage = getProgressPercentage(token.daysUntilExpiry);
+        const colorClass = getProgressColor(token.daysUntilExpiry);
         
         return (
           <div 
             key={token.id} 
-            className={`rounded-lg border p-4 ${styles.bg}`}
+            className="bg-card rounded-lg border border-border p-4"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg bg-background/50 flex items-center justify-center`}>
-                  {token.status === 'critical' ? (
-                    <AlertTriangle className={`w-5 h-5 ${styles.icon}`} />
-                  ) : (
-                    <Clock className={`w-5 h-5 ${styles.icon}`} />
-                  )}
-                </div>
-                <div>
-                  <h4 className={`font-semibold ${styles.text}`}>
-                    {token.account_name}
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
-                    {token.platform === 'meta' ? 'Meta Ads' : 'Google Ads'} • {getExpiryMessage(token)}
-                  </p>
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleRenew}>
-                  <Key className="w-4 h-4 mr-2" />
-                  Renovar
-                </Button>
-                {token.status !== 'critical' && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleDismiss(token.id)}
-                  >
-                    <X className="w-4 h-4" />
+                <span className="font-medium text-foreground text-sm">
+                  {token.account_name}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({token.platform === 'meta' ? 'Meta Ads' : 'Google Ads'})
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-xs font-medium ${
+                  token.daysUntilExpiry <= 3 ? 'text-destructive' : 
+                  token.daysUntilExpiry <= 7 ? 'text-warning' : 
+                  'text-muted-foreground'
+                }`}>
+                  {getExpiryText(token)}
+                </span>
+                {token.daysUntilExpiry <= 7 && (
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRenew}>
+                    <Key className="w-3 h-3 mr-1" />
+                    Renovar
                   </Button>
                 )}
               </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={`h-full ${colorClass} transition-all duration-500 ease-out rounded-full`}
+                style={{ width: `${percentage}%` }}
+              />
             </div>
           </div>
         );
