@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key } from "lucide-react";
 import { useAdAccounts, useOAuthConnect } from "@/hooks/useAdAccounts";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -16,13 +16,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MetaTokenDialog } from "@/components/dashboard/MetaTokenDialog";
 
 const Accounts = () => {
   const { accounts, isLoading, deleteAccount, syncAccount } = useAdAccounts();
-  const { isConnecting, connectMeta, connectGoogle, handleOAuthCallback } = useOAuthConnect();
+  const { isConnecting, connectMeta, connectMetaToken, connectGoogle, handleOAuthCallback } = useOAuthConnect();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [metaTokenDialogOpen, setMetaTokenDialogOpen] = useState(false);
 
   // Handle OAuth callback
   useEffect(() => {
@@ -109,7 +111,28 @@ const Accounts = () => {
         )}
 
         {/* Connection Options */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {/* Meta Token (manual - recommended) */}
+          <button
+            onClick={() => setMetaTokenDialogOpen(true)}
+            disabled={isConnecting}
+            className="stat-card group cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 text-left disabled:opacity-50 disabled:cursor-not-allowed relative"
+          >
+            <div className="absolute top-2 right-2">
+              <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded-full font-medium">Recomendado</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-[#1877F2]/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Key className="w-7 h-7 text-[#1877F2]" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Meta Ads (Token)</h3>
+                <p className="text-sm text-muted-foreground">Conectar via Token de Acesso</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Meta OAuth */}
           <button
             onClick={connectMeta}
             disabled={isConnecting}
@@ -126,12 +149,13 @@ const Accounts = () => {
                 )}
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Meta Ads</h3>
-                <p className="text-sm text-muted-foreground">Conectar conta Facebook/Instagram Ads</p>
+                <h3 className="font-semibold text-foreground">Meta Ads (OAuth)</h3>
+                <p className="text-sm text-muted-foreground">Conectar via Facebook Login</p>
               </div>
             </div>
           </button>
 
+          {/* Google Ads */}
           <button
             onClick={connectGoogle}
             disabled={isConnecting}
@@ -279,6 +303,14 @@ const Accounts = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Meta Token Dialog */}
+      <MetaTokenDialog
+        open={metaTokenDialogOpen}
+        onOpenChange={setMetaTokenDialogOpen}
+        onSubmit={connectMetaToken}
+        isLoading={isConnecting}
+      />
 
     </div>
   );
