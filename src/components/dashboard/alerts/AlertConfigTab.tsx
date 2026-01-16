@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Bell, CheckCircle2, Loader2, MessageSquare } from "lucide-react";
+import { Bell, CheckCircle2, Loader2, MessageSquare, Settings } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+  const [bulkLimitValue, setBulkLimitValue] = useState<string>("");
 
   // Fetch user's default min balance from notification_settings
   const { data: notificationSettings } = useQuery({
@@ -86,6 +87,28 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
     }
   });
 
+  // Bulk update all limits mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (minBalance: number) => {
+      if (!accounts || accounts.length === 0) return;
+      
+      const { error } = await supabase
+        .from('ad_accounts')
+        .update({ min_balance_alert: minBalance })
+        .in('id', accounts.map(a => a.id));
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ad-accounts-alerts'] });
+      toast.success('Todos os limites foram atualizados');
+      setBulkLimitValue("");
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar limites: ' + error.message);
+    }
+  });
+
   const handleToggle = (id: string, currentEnabled: boolean) => {
     toggleMutation.mutate({ id, enabled: !currentEnabled });
   };
@@ -109,8 +132,56 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
     setEditValue("");
   };
 
+  const handleBulkUpdate = () => {
+    const value = parseFloat(bulkLimitValue);
+    if (isNaN(value) || value < 0) {
+      toast.error('Valor inválido');
+      return;
+    }
+    bulkUpdateMutation.mutate(value);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Bulk Update Card */}
+      <div className="bg-card rounded-xl border border-border shadow-card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Settings className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground">Alterar Todos os Limites</h3>
+            <p className="text-sm text-muted-foreground">Defina um novo limite para todas as contas de uma vez</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-sm text-muted-foreground">R$</span>
+            <Input
+              type="number"
+              placeholder={defaultMinBalance.toString()}
+              value={bulkLimitValue}
+              onChange={(e) => setBulkLimitValue(e.target.value)}
+              className="max-w-[180px]"
+            />
+          </div>
+          <Button 
+            onClick={handleBulkUpdate}
+            disabled={bulkUpdateMutation.isPending || !bulkLimitValue || !accounts || accounts.length === 0}
+          >
+            {bulkUpdateMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
+            Aplicar a Todas ({accounts?.length || 0})
+          </Button>
+        </div>
+        {accounts && accounts.length > 0 && (
+          <p className="text-xs text-muted-foreground mt-3">
+            Isso irá atualizar o limite de todas as {accounts.length} contas conectadas.
+          </p>
+        )}
+      </div>
+
       {/* Info Card */}
       <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <div className="flex items-center gap-3 mb-4">
