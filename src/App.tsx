@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
 import Alerts from "./pages/Alerts";
 import Accounts from "./pages/Accounts";
+import Tokens from "./pages/Tokens";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import NotFound from "./pages/NotFound";
@@ -54,6 +55,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Accounts />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/tokens"
+            element={
+              <ProtectedRoute>
+                <Tokens />
               </ProtectedRoute>
             }
           />
