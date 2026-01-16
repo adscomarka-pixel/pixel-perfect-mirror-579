@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { AlertsList } from "@/components/dashboard/AlertsList";
 import { AccountsTable } from "@/components/dashboard/AccountsTable";
+import { TokenExpiryAlert } from "@/components/dashboard/TokenExpiryAlert";
 import { BarChart3, Bell, DollarSign, TrendingUp } from "lucide-react";
 
 const Dashboard = () => {
@@ -15,6 +16,9 @@ const Dashboard = () => {
           <h1 className="text-2xl font-bold text-foreground">Visão Geral</h1>
           <p className="text-muted-foreground">Monitore suas contas de anúncios em tempo real</p>
         </div>
+
+        {/* Token Expiry Alerts */}
+        <TokenExpiryAlert />
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
