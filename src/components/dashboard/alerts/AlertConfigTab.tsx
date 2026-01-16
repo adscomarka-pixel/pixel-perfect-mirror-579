@@ -3,9 +3,10 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Bell, CheckCircle2, Loader2, MessageSquare } from "lucide-react";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AdAccountAlert {
   id: string;
@@ -22,9 +23,29 @@ interface AlertConfigTabProps {
 }
 
 export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+
+  // Fetch user's default min balance from notification_settings
+  const { data: notificationSettings } = useQuery({
+    queryKey: ['notification-settings', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('notification_settings')
+        .select('default_min_balance')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const defaultMinBalance = notificationSettings?.default_min_balance || 500;
 
   // Toggle alert mutation
   const toggleMutation = useMutation({
@@ -71,7 +92,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
 
   const handleEditLimit = (account: AdAccountAlert) => {
     setEditingId(account.id);
-    setEditValue(String(account.min_balance_alert || 500));
+    setEditValue(String(account.min_balance_alert || defaultMinBalance));
   };
 
   const handleSaveLimit = (id: string) => {
@@ -104,6 +125,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
         <p className="text-sm text-muted-foreground">
           Quando o saldo de uma conta ficar abaixo do limite configurado, você receberá uma notificação. 
           Ative ou desative alertas para cada conta individualmente e ajuste o valor mínimo clicando no limite.
+          O limite padrão atual é R$ {defaultMinBalance.toLocaleString("pt-BR")}.
         </p>
       </div>
 
@@ -183,13 +205,13 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
                           onClick={() => handleEditLimit(account)}
                           className="hover:text-foreground hover:underline transition-colors"
                         >
-                          Limite: R$ {(account.min_balance_alert || 500).toLocaleString("pt-BR")}
+                          Limite: R$ {(account.min_balance_alert || defaultMinBalance).toLocaleString("pt-BR")}
                         </button>
                       )}
                     </div>
                     {account.balance !== null && (
                       <p className={`text-xs mt-1 ${
-                        (account.balance || 0) < (account.min_balance_alert || 500) 
+                        (account.balance || 0) < (account.min_balance_alert || defaultMinBalance) 
                           ? 'text-destructive' 
                           : 'text-success'
                       }`}>
