@@ -2,7 +2,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, Bell, CheckCircle2, Loader2, MessageSquare, RefreshCw } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, Loader2, MessageSquare, PlayCircle, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,6 +92,26 @@ const Alerts = () => {
     }
   });
 
+  // Manual balance check mutation
+  const checkBalanceMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('check-balance-alerts');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['recent-alerts'] });
+      if (data.alertsCreated > 0) {
+        toast.success(`${data.alertsCreated} alerta(s) criado(s) para: ${data.alertedAccounts.join(', ')}`);
+      } else {
+        toast.info(`${data.accountsChecked} conta(s) verificada(s). Nenhum saldo abaixo do limite.`);
+      }
+    },
+    onError: (error) => {
+      toast.error('Erro ao verificar saldos: ' + error.message);
+    }
+  });
+
   const handleToggle = (id: string, currentEnabled: boolean) => {
     toggleMutation.mutate({ id, enabled: !currentEnabled });
   };
@@ -130,13 +150,27 @@ const Alerts = () => {
             <h1 className="text-2xl font-bold text-foreground">Alertas</h1>
             <p className="text-muted-foreground">Configure alertas de saldo baixo para suas contas</p>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['ad-accounts-alerts', 'recent-alerts'] })}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Atualizar
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="default"
+              onClick={() => checkBalanceMutation.mutate()}
+              disabled={checkBalanceMutation.isPending}
+            >
+              {checkBalanceMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <PlayCircle className="w-4 h-4 mr-2" />
+              )}
+              Testar Verificação
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['ad-accounts-alerts', 'recent-alerts'] })}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
