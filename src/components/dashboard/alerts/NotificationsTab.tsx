@@ -81,6 +81,28 @@ export function NotificationsTab() {
     }
   });
 
+  // Delete all alerts mutation
+  const deleteAllAlertsMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('alerts')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all (neq with impossible ID)
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-alerts-count'] });
+      queryClient.invalidateQueries({ queryKey: ['notification-alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-alerts'] });
+      toast.success('Todas as notificações foram excluídas');
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir: ' + error.message);
+    }
+  });
+
   const formatAlertTime = (sentAt: string) => {
     return formatDistanceToNow(new Date(sentAt), { addSuffix: true, locale: ptBR });
   };
@@ -112,6 +134,22 @@ export function NotificationsTab() {
               <CheckCircle2 className="w-4 h-4 mr-2" />
             )}
             Marcar todas como lidas
+          </Button>
+        )}
+        {alerts && alerts.length > 0 && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => deleteAllAlertsMutation.mutate()}
+            disabled={deleteAllAlertsMutation.isPending}
+          >
+            {deleteAllAlertsMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4 mr-2" />
+            )}
+            Limpar tudo
           </Button>
         )}
       </div>
