@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key } from "lucide-react";
 import { useAdAccounts, useOAuthConnect } from "@/hooks/useAdAccounts";
-import { TokenExpiryAlert } from "@/components/dashboard/TokenExpiryAlert";
+import { TokenExpiryBars } from "@/components/dashboard/TokenExpiryBars";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -111,8 +111,8 @@ const Accounts = () => {
           </Alert>
         )}
 
-        {/* Token Expiry Alerts */}
-        <TokenExpiryAlert />
+        {/* Token Expiry Bars */}
+        <TokenExpiryBars onRenewClick={() => setMetaTokenDialogOpen(true)} />
 
         {/* Connection Options */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

@@ -8,12 +8,12 @@ export interface ExpiringToken {
   platform: 'meta' | 'google';
   token_expires_at: string;
   daysUntilExpiry: number;
-  status: 'critical' | 'warning' | 'expiring_soon';
+  status: 'critical' | 'warning' | 'expiring_soon' | 'healthy';
 }
 
-export function useExpiringTokens() {
+export function useExpiringTokens(showAll: boolean = false) {
   const { data: expiringTokens, isLoading, refetch } = useQuery({
-    queryKey: ['expiring-tokens'],
+    queryKey: ['expiring-tokens', showAll],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ad_accounts')
@@ -32,20 +32,22 @@ export function useExpiringTokens() {
         const expiryDate = parseISO(account.token_expires_at);
         const daysUntilExpiry = differenceInDays(expiryDate, now);
 
-        // Only include tokens expiring within 14 days or already expired
-        if (daysUntilExpiry <= 14) {
-          let status: ExpiringToken['status'];
-          
-          if (daysUntilExpiry <= 0) {
-            status = 'critical'; // Already expired
-          } else if (daysUntilExpiry <= 3) {
-            status = 'critical'; // Expires in 3 days or less
-          } else if (daysUntilExpiry <= 7) {
-            status = 'warning'; // Expires in 7 days or less
-          } else {
-            status = 'expiring_soon'; // Expires in 14 days or less
-          }
+        let status: ExpiringToken['status'];
+        
+        if (daysUntilExpiry <= 0) {
+          status = 'critical';
+        } else if (daysUntilExpiry <= 3) {
+          status = 'critical';
+        } else if (daysUntilExpiry <= 7) {
+          status = 'warning';
+        } else if (daysUntilExpiry <= 14) {
+          status = 'expiring_soon';
+        } else {
+          status = 'healthy';
+        }
 
+        // If showAll, include all tokens; otherwise only include expiring ones
+        if (showAll || daysUntilExpiry <= 14) {
           tokens.push({
             id: account.id,
             account_name: account.account_name,
