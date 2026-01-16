@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { BarChart3, Bell, FileText, Home, Link2, LogOut, Settings, Users } from "lucide-react";
+import { BarChart3, Bell, FileText, Home, Key, Link2, LogOut, Settings, Users } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -11,6 +11,7 @@ const baseNavigation = [
   { name: "Relatórios", href: "/dashboard/reports", icon: FileText },
   { name: "Alertas", href: "/dashboard/alerts", icon: Bell },
   { name: "Contas", href: "/dashboard/accounts", icon: Link2 },
+  { name: "Tokens", href: "/dashboard/tokens", icon: Key },
   { name: "Configurações", href: "/dashboard/settings", icon: Settings },
 ];
 
