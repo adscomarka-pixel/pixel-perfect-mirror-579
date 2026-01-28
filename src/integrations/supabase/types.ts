@@ -123,6 +123,7 @@ export type Database = {
           balance_alerts_enabled: boolean | null
           created_at: string
           default_min_balance: number | null
+          default_product_name: string | null
           email_notifications: boolean | null
           id: string
           report_day: string | null
@@ -137,6 +138,7 @@ export type Database = {
           balance_alerts_enabled?: boolean | null
           created_at?: string
           default_min_balance?: number | null
+          default_product_name?: string | null
           email_notifications?: boolean | null
           id?: string
           report_day?: string | null
@@ -151,6 +153,7 @@ export type Database = {
           balance_alerts_enabled?: boolean | null
           created_at?: string
           default_min_balance?: number | null
+          default_product_name?: string | null
           email_notifications?: boolean | null
           id?: string
           report_day?: string | null
@@ -189,6 +192,51 @@ export type Database = {
           id?: string
           phone?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          cost_per_message: number | null
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          messages_count: number | null
+          period_end: string
+          period_start: string
+          product_name: string | null
+          title: string
+          total_investment: number | null
+          user_id: string
+        }
+        Insert: {
+          cost_per_message?: number | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          messages_count?: number | null
+          period_end: string
+          period_start: string
+          product_name?: string | null
+          title: string
+          total_investment?: number | null
+          user_id: string
+        }
+        Update: {
+          cost_per_message?: number | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          messages_count?: number | null
+          period_end?: string
+          period_start?: string
+          product_name?: string | null
+          title?: string
+          total_investment?: number | null
           user_id?: string
         }
         Relationships: []
