@@ -38,7 +38,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Shield, User } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Shield, User } from "lucide-react";
+import { EditUserDialog } from "@/components/dashboard/users/EditUserDialog";
 
 type AppRole = "admin" | "gestor" | "leitor";
 
@@ -68,12 +69,19 @@ const Users = () => {
   const { canManageUsers, isLoading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserCompany, setNewUserCompany] = useState("");
   const [newUserRole, setNewUserRole] = useState<AppRole>("leitor");
   const [isCreating, setIsCreating] = useState(false);
+
+  const handleEditUser = (userProfile: UserProfile) => {
+    setSelectedUser(userProfile);
+    setIsEditOpen(true);
+  };
 
   // Fetch users with their roles
   const { data: users, isLoading: usersLoading } = useQuery({
@@ -388,6 +396,14 @@ const Users = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditUser(userProfile)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+
                       <select
                         className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         value={userProfile.role || "leitor"}
@@ -451,6 +467,12 @@ const Users = () => {
             </TableBody>
           </Table>
         </div>
+
+        <EditUserDialog
+          user={selectedUser}
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+        />
       </div>
     </DashboardLayout>
   );
