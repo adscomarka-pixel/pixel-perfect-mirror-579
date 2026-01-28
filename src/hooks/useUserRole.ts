@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
+export type AppRole = "admin" | "gestor" | "leitor";
+
 export const useUserRole = () => {
   const { user, isLoading: authLoading } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<AppRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -16,7 +18,7 @@ export const useUserRole = () => {
 
     const checkRole = async () => {
       if (!user) {
-        setIsAdmin(false);
+        setRole(null);
         setIsLoading(false);
         return;
       }
@@ -26,14 +28,13 @@ export const useUserRole = () => {
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
-          .eq("role", "admin")
           .maybeSingle();
 
         if (error) throw error;
-        setIsAdmin(!!data);
+        setRole((data?.role as AppRole) || null);
       } catch (error) {
         console.error("Error checking user role:", error);
-        setIsAdmin(false);
+        setRole(null);
       } finally {
         setIsLoading(false);
       }
@@ -42,5 +43,19 @@ export const useUserRole = () => {
     checkRole();
   }, [user, authLoading]);
 
-  return { isAdmin, isLoading };
+  const isAdmin = role === "admin";
+  const isGestor = role === "gestor";
+  const isLeitor = role === "leitor";
+  const canManageReports = role === "admin" || role === "gestor";
+  const canManageUsers = role === "admin";
+
+  return { 
+    role, 
+    isAdmin, 
+    isGestor, 
+    isLeitor, 
+    canManageReports, 
+    canManageUsers,
+    isLoading 
+  };
 };
