@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/hooks/useAuth";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,20 +190,18 @@ const Users = () => {
 
   if (roleLoading || usersLoading) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <main className="flex-1 p-6 flex items-center justify-center">
+      <DashboardLayout>
+        <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </main>
-      </div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <main className="flex-1 p-6 flex items-center justify-center">
+      <DashboardLayout>
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <Shield className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Acesso Restrito</h2>
@@ -211,15 +209,14 @@ const Users = () => {
               Você não tem permissão para acessar esta página.
             </p>
           </div>
-        </main>
-      </div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 p-6">
+    <DashboardLayout>
+      <div>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold">Usuários</h1>
@@ -396,8 +393,8 @@ const Users = () => {
             </TableBody>
           </Table>
         </div>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 
