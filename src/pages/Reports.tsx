@@ -1,6 +1,8 @@
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Calendar, Download, FileText, TrendingUp } from "lucide-react";
+import { Calendar, Download, FileText, TrendingUp, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 const reports = [
   {
@@ -38,6 +40,41 @@ const reports = [
 ];
 
 const Reports = () => {
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+
+  const handleDownload = async (reportId: string, format: 'pdf' | 'csv') => {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) return;
+
+    setDownloadingId(`${reportId}-${format}`);
+    
+    // Simulate download delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    toast.success(`Relatório "${report.title}" baixado em ${format.toUpperCase()}`);
+    setDownloadingId(null);
+  };
+
+  const handleGenerateReport = async () => {
+    setGeneratingReport(true);
+    
+    // Simulate report generation
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    toast.success("Novo relatório gerado com sucesso!", {
+      description: "O relatório aparecerá na lista em instantes."
+    });
+    setGeneratingReport(false);
+  };
+
+  const handleReportTypeClick = (type: 'campaign' | 'balance') => {
+    const typeName = type === 'campaign' ? 'Campanhas' : 'Saldo';
+    toast.info(`Gerando relatório de ${typeName}...`, {
+      description: "Selecione o período desejado."
+    });
+  };
+
   return (
     <DashboardLayout>
       {/* Header */}
@@ -46,15 +83,22 @@ const Reports = () => {
           <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
           <p className="text-muted-foreground">Visualize e baixe seus relatórios de campanhas</p>
         </div>
-        <Button variant="hero">
-          <FileText className="w-4 h-4 mr-2" />
-          Gerar Novo Relatório
+        <Button variant="hero" onClick={handleGenerateReport} disabled={generatingReport}>
+          {generatingReport ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <FileText className="w-4 h-4 mr-2" />
+          )}
+          {generatingReport ? "Gerando..." : "Gerar Novo Relatório"}
         </Button>
       </div>
 
       {/* Report Types */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="stat-card cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1">
+        <div 
+          className="stat-card cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
+          onClick={() => handleReportTypeClick('campaign')}
+        >
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-accent" />
@@ -65,7 +109,10 @@ const Reports = () => {
             </div>
           </div>
         </div>
-        <div className="stat-card cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1">
+        <div 
+          className="stat-card cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
+          onClick={() => handleReportTypeClick('balance')}
+        >
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
               <FileText className="w-6 h-6 text-success" />
@@ -108,12 +155,30 @@ const Reports = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleDownload(report.id, 'pdf')}
+                  disabled={downloadingId === `${report.id}-pdf`}
+                >
+                  {downloadingId === `${report.id}-pdf` ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                  )}
                   PDF
                 </Button>
-                <Button variant="ghost" size="sm">
-                  CSV
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => handleDownload(report.id, 'csv')}
+                  disabled={downloadingId === `${report.id}-csv`}
+                >
+                  {downloadingId === `${report.id}-csv` ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "CSV"
+                  )}
                 </Button>
               </div>
             </div>
