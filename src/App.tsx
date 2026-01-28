@@ -12,6 +12,7 @@ import Accounts from "./pages/Accounts";
 import Tokens from "./pages/Tokens";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+import Guide from "./pages/Guide";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -79,6 +80,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Users />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/guide"
+            element={
+              <ProtectedRoute>
+                <Guide />
               </ProtectedRoute>
             }
           />

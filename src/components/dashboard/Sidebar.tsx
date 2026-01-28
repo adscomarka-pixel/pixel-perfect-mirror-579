@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { BarChart3, Bell, ChevronLeft, ChevronRight, FileText, Home, Key, Link2, LogOut, Settings, Users } from "lucide-react";
+import { BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, FileText, Home, Key, Link2, LogOut, Settings, Users } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -15,6 +15,7 @@ const baseNavigation = [
   { name: "Alertas", href: "/dashboard/alerts", icon: Bell },
   { name: "Contas", href: "/dashboard/accounts", icon: Link2 },
   { name: "Tokens", href: "/dashboard/tokens", icon: Key },
+  { name: "Guia de Uso", href: "/dashboard/guide", icon: BookOpen },
   { name: "Configurações", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -26,11 +27,11 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { canManageUsers } = useUserRole();
   const { isCollapsed, toggle } = useSidebar();
   const [profile, setProfile] = useState<{ full_name: string | null; company_name: string | null } | null>(null);
 
-  const navigation = isAdmin 
+  const navigation = canManageUsers 
     ? [...baseNavigation, ...adminNavigation]
     : baseNavigation;
 

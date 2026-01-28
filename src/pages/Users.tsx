@@ -36,8 +36,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, Shield, User } from "lucide-react";
+
+type AppRole = "admin" | "gestor" | "leitor";
 
 interface UserProfile {
   id: string;
@@ -45,18 +48,31 @@ interface UserProfile {
   full_name: string | null;
   company_name: string | null;
   created_at: string;
-  isAdmin?: boolean;
+  role?: AppRole;
 }
+
+const roleLabels: Record<AppRole, string> = {
+  admin: "Administrador",
+  gestor: "Gestor",
+  leitor: "Leitor",
+};
+
+const roleBadgeVariants: Record<AppRole, string> = {
+  admin: "bg-red-500/10 text-red-600 hover:bg-red-500/20 border-red-500/20",
+  gestor: "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/20",
+  leitor: "bg-gray-500/10 text-gray-600 hover:bg-gray-500/20 border-gray-500/20",
+};
 
 const Users = () => {
   const { user } = useAuth();
-  const { isAdmin, isLoading: roleLoading } = useUserRole();
+  const { canManageUsers, isLoading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [newUserName, setNewUserName] = useState("");
   const [newUserCompany, setNewUserCompany] = useState("");
+  const [newUserRole, setNewUserRole] = useState<AppRole>("leitor");
   const [isCreating, setIsCreating] = useState(false);
 
   // Fetch users with their roles
@@ -76,16 +92,17 @@ const Users = () => {
 
       if (rolesError) throw rolesError;
 
-      const adminUserIds = new Set(
-        roles?.filter((r) => r.role === "admin").map((r) => r.user_id) || []
-      );
+      const rolesMap = new Map<string, AppRole>();
+      roles?.forEach((r) => {
+        rolesMap.set(r.user_id, r.role as AppRole);
+      });
 
       return profiles?.map((profile) => ({
         ...profile,
-        isAdmin: adminUserIds.has(profile.user_id),
+        role: rolesMap.get(profile.user_id),
       })) as UserProfile[];
     },
-    enabled: isAdmin,
+    enabled: canManageUsers,
   });
 
   // Create user mutation
@@ -113,6 +130,14 @@ const Users = () => {
 
       if (profileError) throw profileError;
 
+      // Create role
+      const { error: roleError } = await supabase.from("user_roles").insert({
+        user_id: authData.user.id,
+        role: newUserRole,
+      });
+
+      if (roleError) throw roleError;
+
       return authData.user;
     },
     onSuccess: () => {
@@ -123,6 +148,7 @@ const Users = () => {
       setNewUserPassword("");
       setNewUserName("");
       setNewUserCompany("");
+      setNewUserRole("leitor");
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao criar usuário");
@@ -152,29 +178,24 @@ const Users = () => {
     },
   });
 
-  // Toggle admin role mutation
-  const toggleAdminMutation = useMutation({
-    mutationFn: async ({ userId, isCurrentlyAdmin }: { userId: string; isCurrentlyAdmin: boolean }) => {
-      if (isCurrentlyAdmin) {
-        const { error } = await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId)
-          .eq("role", "admin");
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("user_roles")
-          .insert({ user_id: userId, role: "admin" });
-        if (error) throw error;
-      }
+  // Update user role mutation
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: AppRole }) => {
+      // First, delete existing role
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      
+      // Then insert new role
+      const { error } = await supabase
+        .from("user_roles")
+        .insert({ user_id: userId, role: newRole });
+      if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Permissões atualizadas!");
+      toast.success("Função atualizada!");
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao atualizar permissões");
+      toast.error(error.message || "Erro ao atualizar função");
     },
   });
 
@@ -198,7 +219,7 @@ const Users = () => {
     );
   }
 
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <DashboardLayout>
         <div className="flex-1 flex items-center justify-center">
@@ -283,6 +304,42 @@ const Users = () => {
                     required
                   />
                 </div>
+                <div className="space-y-3">
+                  <Label>Função</Label>
+                  <RadioGroup
+                    value={newUserRole}
+                    onValueChange={(value) => setNewUserRole(value as AppRole)}
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="admin" id="role-admin" />
+                      <Label htmlFor="role-admin" className="font-normal cursor-pointer">
+                        <span className="font-medium">Administrador</span>
+                        <span className="text-muted-foreground text-xs ml-2">
+                          - Acesso completo
+                        </span>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="gestor" id="role-gestor" />
+                      <Label htmlFor="role-gestor" className="font-normal cursor-pointer">
+                        <span className="font-medium">Gestor</span>
+                        <span className="text-muted-foreground text-xs ml-2">
+                          - Relatórios e alertas
+                        </span>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="leitor" id="role-leitor" />
+                      <Label htmlFor="role-leitor" className="font-normal cursor-pointer">
+                        <span className="font-medium">Leitor</span>
+                        <span className="text-muted-foreground text-xs ml-2">
+                          - Apenas visualização
+                        </span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 <DialogFooter>
                   <Button type="submit" disabled={isCreating}>
                     {isCreating ? (
@@ -322,8 +379,8 @@ const Users = () => {
                   </TableCell>
                   <TableCell>{userProfile.company_name || "-"}</TableCell>
                   <TableCell>
-                    <Badge variant={userProfile.isAdmin ? "default" : "secondary"}>
-                      {userProfile.isAdmin ? "Admin" : "Usuário"}
+                    <Badge className={userProfile.role ? roleBadgeVariants[userProfile.role] : roleBadgeVariants.leitor}>
+                      {userProfile.role ? roleLabels[userProfile.role] : "Leitor"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -331,20 +388,21 @@ const Users = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          toggleAdminMutation.mutate({
+                      <select
+                        className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        value={userProfile.role || "leitor"}
+                        onChange={(e) =>
+                          updateRoleMutation.mutate({
                             userId: userProfile.user_id,
-                            isCurrentlyAdmin: !!userProfile.isAdmin,
+                            newRole: e.target.value as AppRole,
                           })
                         }
                         disabled={userProfile.user_id === user?.id}
                       >
-                        <Shield className="h-4 w-4 mr-1" />
-                        {userProfile.isAdmin ? "Remover Admin" : "Tornar Admin"}
-                      </Button>
+                        <option value="admin">Administrador</option>
+                        <option value="gestor">Gestor</option>
+                        <option value="leitor">Leitor</option>
+                      </select>
 
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
