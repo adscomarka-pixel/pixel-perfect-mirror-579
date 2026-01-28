@@ -10,6 +10,14 @@ interface ReportData {
   periodDays?: number;
 }
 
+interface AdAccount {
+  id: string;
+  account_name: string;
+  platform: string;
+  balance: number;
+  daily_spend: number;
+}
+
 async function sendWebhookNotifications(supabase: any, report: any, userId: string) {
   try {
     // Fetch active webhooks for this user
@@ -33,8 +41,9 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
     for (const webhook of webhooks) {
       try {
         const payload = {
-          type: 'weekly_report',
+          type: 'account_report',
           report: {
+            id: report.id,
             title: report.title,
             message: report.message,
             product_name: report.product_name,
@@ -66,6 +75,92 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
     }
   } catch (error) {
     console.error('Error in sendWebhookNotifications:', error)
+  }
+}
+
+async function generateReportForAccount(
+  supabase: any,
+  account: AdAccount,
+  userId: string,
+  periodDays: number,
+  startDate: Date,
+  endDate: Date
+) {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  // Calculate totals for this specific account
+  const dailySpend = Number(account.daily_spend) || 0
+  const totalInvestment = dailySpend * periodDays
+  
+  // Estimate messages based on spend (this would come from API in real implementation)
+  // Assuming average CPM of R$30 for estimation
+  const totalMessages = Math.floor((dailySpend * periodDays) / 30 * 1000)
+  
+  // Calculate cost per message
+  const costPerMessage = totalMessages > 0 ? totalInvestment / totalMessages : 0
+
+  // Use account name as product name for individual reports
+  const productName = account.account_name
+
+  // Create report message
+  const reportMessage = `Bom dia,
+
+Segue o relatório de desempenho da conta de anúncios
+
+Produto: ${productName}
+
+📅 Período analisado: Últimos ${periodDays} dias
+
+💰 Investimento total: R$ ${totalInvestment.toFixed(2).replace('.', ',')}
+
+💬 Mensagens iniciadas: ${totalMessages.toLocaleString('pt-BR')}
+
+📈 Custo por mensagens: R$ ${costPerMessage.toFixed(2).replace('.', ',')}
+
+Vamo pra cima!! 🚀`
+
+  const reportTitle = `📊 ${productName} - ${formatDate(startDate)} a ${formatDate(endDate)}`
+
+  // Save report to database
+  const reportData = {
+    user_id: userId,
+    title: reportTitle,
+    message: reportMessage,
+    product_name: productName,
+    period_start: startDate.toISOString().split('T')[0],
+    period_end: endDate.toISOString().split('T')[0],
+    total_investment: totalInvestment,
+    messages_count: totalMessages,
+    cost_per_message: costPerMessage,
+    is_read: false,
+  }
+
+  const { data: insertedReport, error: insertError } = await supabase
+    .from('reports')
+    .insert(reportData)
+    .select()
+    .single()
+
+  if (insertError) {
+    console.error(`❌ Error creating report for ${productName}:`, insertError)
+    throw insertError
+  }
+
+  console.log(`✅ Report created for: ${productName}`)
+
+  // Send webhook notifications for this report
+  await sendWebhookNotifications(supabase, insertedReport, userId)
+
+  return {
+    account: productName,
+    report: insertedReport,
+    stats: {
+      totalInvestment,
+      totalMessages,
+      costPerMessage,
+    }
   }
 }
 
@@ -104,7 +199,6 @@ Deno.serve(async (req) => {
       // Use defaults if no body
     }
 
-    const productName = requestData.productName || 'Meu Produto'
     const periodDays = requestData.periodDays || 7
 
     // Calculate date range
@@ -130,85 +224,54 @@ Deno.serve(async (req) => {
 
     console.log(`📊 Found ${accounts?.length || 0} accounts for user`)
 
-    // Calculate totals
-    // For real implementation, this would fetch from Meta/Google APIs
-    // For now, we calculate based on daily_spend * period
-    let totalInvestment = 0
-    let totalMessages = 0
-
-    for (const account of accounts || []) {
-      const dailySpend = Number(account.daily_spend) || 0
-      totalInvestment += dailySpend * periodDays
-      
-      // Estimate messages based on spend (this would come from API in real implementation)
-      // Assuming average CPM of R$30 for estimation
-      const estimatedMessages = Math.floor((dailySpend * periodDays) / 30 * 1000)
-      totalMessages += estimatedMessages
+    if (!accounts || accounts.length === 0) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Nenhuma conta de anúncios encontrada' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400
+      })
     }
 
-    // Calculate cost per message
-    const costPerMessage = totalMessages > 0 ? totalInvestment / totalMessages : 0
+    // Generate individual reports for each account
+    const results = []
+    let successCount = 0
+    let errorCount = 0
 
-    // Create report message
-    const reportMessage = `Bom dia,
-
-Segue o relatório geral de desempenho da semana passada (Segunda a Domingo)
-
-Produto: ${productName}
-
-📅 Período analisado: Últimos ${periodDays} dias
-
-💰 Investimento total: R$ ${totalInvestment.toFixed(2).replace('.', ',')}
-
-💬 Mensagens iniciadas: ${totalMessages.toLocaleString('pt-BR')}
-
-📈 Custo por mensagens: R$ ${costPerMessage.toFixed(2).replace('.', ',')}
-
-Vamo pra cima!! 🚀`
-
-    const reportTitle = `📊 Relatório Semanal - ${formatDate(startDate)} a ${formatDate(endDate)}`
-
-    // Save report to database
-    const reportData = {
-      user_id: user.id,
-      title: reportTitle,
-      message: reportMessage,
-      product_name: productName,
-      period_start: startDate.toISOString().split('T')[0],
-      period_end: endDate.toISOString().split('T')[0],
-      total_investment: totalInvestment,
-      messages_count: totalMessages,
-      cost_per_message: costPerMessage,
-      is_read: false,
+    for (const account of accounts) {
+      try {
+        const result = await generateReportForAccount(
+          supabase,
+          account,
+          user.id,
+          periodDays,
+          startDate,
+          endDate
+        )
+        results.push(result)
+        successCount++
+        console.log(`✅ Report ${successCount}/${accounts.length} generated for: ${account.account_name}`)
+      } catch (error) {
+        console.error(`❌ Failed to generate report for ${account.account_name}:`, error)
+        errorCount++
+        results.push({
+          account: account.account_name,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
     }
-
-    const { data: insertedReport, error: insertError } = await supabase
-      .from('reports')
-      .insert(reportData)
-      .select()
-      .single()
-
-    if (insertError) {
-      console.error('❌ Error creating report:', insertError)
-      throw insertError
-    }
-
-    console.log('✅ Report created successfully')
-
-    // Send webhook notifications
-    await sendWebhookNotifications(supabase, insertedReport, user.id)
 
     const response = {
       success: true,
-      report: insertedReport,
       summary: {
-        accounts: accounts?.length || 0,
-        totalInvestment,
-        totalMessages,
-        costPerMessage,
+        totalAccounts: accounts.length,
+        successCount,
+        errorCount,
         periodStart: formatDate(startDate),
         periodEnd: formatDate(endDate),
-      }
+      },
+      results
     }
 
     console.log('✅ Report generation completed:', response.summary)
