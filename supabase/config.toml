@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.check-balance-alerts]
 verify_jwt = false
+
+[functions.generate-report]
+verify_jwt = false
