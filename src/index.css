@@ -146,8 +146,10 @@
   }
 
   .text-gradient {
-    @apply bg-clip-text text-transparent;
+    @apply text-transparent;
     background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    background-clip: text;
   }
 }
 
