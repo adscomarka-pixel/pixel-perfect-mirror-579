@@ -38,7 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Pencil, Shield, User } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Shield, User, Eye, EyeOff } from "lucide-react";
 import { EditUserDialog } from "@/components/dashboard/users/EditUserDialog";
 
 type AppRole = "admin" | "gestor" | "leitor";
@@ -77,6 +77,7 @@ const Users = () => {
   const [newUserCompany, setNewUserCompany] = useState("");
   const [newUserRole, setNewUserRole] = useState<AppRole>("leitor");
   const [isCreating, setIsCreating] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleEditUser = (userProfile: UserProfile) => {
     setSelectedUser(userProfile);
@@ -302,15 +303,29 @@ const Users = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-password">Senha</Label>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
-                    minLength={6}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      minLength={6}
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <Label>Função</Label>
