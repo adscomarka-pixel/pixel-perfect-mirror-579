@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key } from "lucide-react";
-import { useAdAccounts, useOAuthConnect } from "@/hooks/useAdAccounts";
+import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key, Settings } from "lucide-react";
+import { useAdAccounts, useOAuthConnect, type AdAccount } from "@/hooks/useAdAccounts";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MetaTokenDialog } from "@/components/dashboard/MetaTokenDialog";
+import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
 
 const Accounts = () => {
   const { accounts, isLoading, deleteAccount, syncAccount } = useAdAccounts();
@@ -25,6 +26,13 @@ const Accounts = () => {
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [metaTokenDialogOpen, setMetaTokenDialogOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<AdAccount | null>(null);
+
+  const handleOpenConfig = (account: AdAccount) => {
+    setSelectedAccount(account);
+    setConfigDialogOpen(true);
+  };
 
   // Handle OAuth callback
   useEffect(() => {
@@ -256,6 +264,7 @@ const Accounts = () => {
                       size="sm"
                       onClick={() => syncAccount.mutate(account.id)}
                       disabled={syncAccount.isPending}
+                      title="Sincronizar"
                     >
                       {syncAccount.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -263,7 +272,15 @@ const Accounts = () => {
                         <RefreshCw className="w-4 h-4" />
                       )}
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleOpenConfig(account)}
+                      title="Configurar"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" title="Abrir plataforma">
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                     <Button 
@@ -271,6 +288,7 @@ const Accounts = () => {
                       size="sm" 
                       className="text-destructive hover:text-destructive"
                       onClick={() => handleDelete(account.id)}
+                      title="Remover"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -306,6 +324,13 @@ const Accounts = () => {
         onOpenChange={setMetaTokenDialogOpen}
         onSubmit={connectMetaToken}
         isLoading={isConnecting}
+      />
+
+      {/* Account Config Dialog */}
+      <AccountConfigDialog
+        account={selectedAccount}
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
       />
     </DashboardLayout>
   );
