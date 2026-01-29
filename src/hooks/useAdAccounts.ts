@@ -133,13 +133,39 @@ export function useAdAccounts() {
     }
   });
 
+  const updateAccountNames = useMutation({
+    mutationFn: async () => {
+      const response = await supabase.functions.invoke('sync-google-balance', {
+        body: { updateNames: true }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
+      toast.success(data?.message || 'Nomes das contas atualizados');
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar nomes: ' + error.message);
+    }
+  });
+
   return {
     accounts: accounts || [],
     isLoading,
     error,
     deleteAccount,
     syncAccount,
-    syncAllGoogleAccounts
+    syncAllGoogleAccounts,
+    updateAccountNames
   };
 }
 
