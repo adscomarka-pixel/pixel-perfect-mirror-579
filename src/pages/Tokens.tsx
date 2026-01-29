@@ -1,5 +1,5 @@
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
-import { Key, RefreshCw, Shield } from "lucide-react";
+import { Key, RefreshCw, Shield, Infinity, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { differenceInDays, parseISO, format } from "date-fns";
@@ -7,26 +7,34 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { MetaTokenDialog } from "@/components/dashboard/MetaTokenDialog";
+import { GoogleTokenDialog } from "@/components/dashboard/GoogleTokenDialog";
 import { useOAuthConnect } from "@/hooks/useAdAccounts";
 
-const MAX_DAYS = 60;
+const META_MAX_DAYS = 60;
 
 interface TokenInfo {
   id: string;
   account_name: string;
   platform: string;
   token_expires_at: string | null;
-  daysUntilExpiry: number;
+  daysUntilExpiry: number | null;
   created_at: string;
+  hasRefreshToken: boolean;
 }
 
-function getProgressPercentage(daysUntilExpiry: number): number {
-  if (daysUntilExpiry <= 0) return 0;
-  return Math.min(100, Math.max(0, (daysUntilExpiry / MAX_DAYS) * 100));
+function getProgressPercentage(daysUntilExpiry: number | null, platform: string): number {
+  // Google tokens with refresh token don't expire
+  if (platform === 'google') return 100;
+  
+  if (daysUntilExpiry === null || daysUntilExpiry <= 0) return 0;
+  return Math.min(100, Math.max(0, (daysUntilExpiry / META_MAX_DAYS) * 100));
 }
 
-function getProgressColor(daysUntilExpiry: number): string {
-  if (daysUntilExpiry <= 0) return 'bg-destructive';
+function getProgressColor(daysUntilExpiry: number | null, platform: string): string {
+  // Google tokens with refresh token are always healthy
+  if (platform === 'google') return 'bg-success';
+  
+  if (daysUntilExpiry === null || daysUntilExpiry <= 0) return 'bg-destructive';
   if (daysUntilExpiry <= 3) return 'bg-destructive';
   if (daysUntilExpiry <= 7) return 'bg-warning';
   if (daysUntilExpiry <= 14) return 'bg-amber-500';
@@ -34,8 +42,13 @@ function getProgressColor(daysUntilExpiry: number): string {
   return 'bg-success';
 }
 
-function getStatusBadge(daysUntilExpiry: number) {
-  if (daysUntilExpiry <= 0) {
+function getStatusBadge(daysUntilExpiry: number | null, platform: string) {
+  // Google tokens with refresh token don't expire
+  if (platform === 'google') {
+    return { text: 'Permanente', class: 'bg-success/10 text-success' };
+  }
+  
+  if (daysUntilExpiry === null || daysUntilExpiry <= 0) {
     return { text: 'Expirado', class: 'bg-destructive/10 text-destructive' };
   }
   if (daysUntilExpiry <= 3) {
@@ -53,8 +66,13 @@ function getStatusBadge(daysUntilExpiry: number) {
   return { text: 'Saudável', class: 'bg-success/10 text-success' };
 }
 
-function getExpiryText(daysUntilExpiry: number): string {
-  if (daysUntilExpiry <= 0) {
+function getExpiryText(daysUntilExpiry: number | null, platform: string): string {
+  // Google refresh tokens don't expire
+  if (platform === 'google') {
+    return 'Não expira';
+  }
+  
+  if (daysUntilExpiry === null || daysUntilExpiry <= 0) {
     return 'Token expirado!';
   } else if (daysUntilExpiry === 1) {
     return 'Expira amanhã';
@@ -65,33 +83,59 @@ function getExpiryText(daysUntilExpiry: number): string {
 
 const Tokens = () => {
   const [metaTokenDialogOpen, setMetaTokenDialogOpen] = useState(false);
-  const { connectMetaToken, isConnecting } = useOAuthConnect();
+  const [googleTokenDialogOpen, setGoogleTokenDialogOpen] = useState(false);
+  const { connectMetaToken, connectGoogleToken, isConnecting } = useOAuthConnect();
 
   const { data: tokens, isLoading, refetch } = useQuery({
     queryKey: ['all-tokens-page'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ad_accounts')
-        .select('id, account_name, platform, token_expires_at, created_at')
+        .select('id, account_name, platform, token_expires_at, created_at, refresh_token')
+        .order('platform', { ascending: false }) // Meta first, then Google
         .order('token_expires_at', { ascending: true });
 
       if (error) throw error;
 
       const now = new Date();
       return (data || []).map(account => {
+        const hasRefreshToken = !!account.refresh_token;
+        
+        // For Google, if has refresh token, it doesn't expire
+        if (account.platform === 'google' && hasRefreshToken) {
+          return {
+            id: account.id,
+            account_name: account.account_name,
+            platform: account.platform,
+            token_expires_at: null,
+            daysUntilExpiry: null, // null means doesn't expire
+            created_at: account.created_at,
+            hasRefreshToken,
+          } as TokenInfo;
+        }
+        
+        // For Meta or Google without refresh token
         const expiryDate = account.token_expires_at ? parseISO(account.token_expires_at) : null;
         const daysUntilExpiry = expiryDate ? differenceInDays(expiryDate, now) : 0;
         
         return {
-          ...account,
+          id: account.id,
+          account_name: account.account_name,
+          platform: account.platform,
+          token_expires_at: account.token_expires_at,
           daysUntilExpiry,
+          created_at: account.created_at,
+          hasRefreshToken,
         } as TokenInfo;
       });
     },
-    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes
+    refetchInterval: 1000 * 60 * 5,
   });
 
-  const criticalCount = tokens?.filter(t => t.daysUntilExpiry <= 7).length || 0;
+  // Only count Meta tokens as critical (Google doesn't expire)
+  const metaTokens = tokens?.filter(t => t.platform === 'meta') || [];
+  const googleTokens = tokens?.filter(t => t.platform === 'google') || [];
+  const criticalCount = metaTokens.filter(t => t.daysUntilExpiry !== null && t.daysUntilExpiry <= 7).length;
 
   return (
     <DashboardLayout>
@@ -106,15 +150,11 @@ const Tokens = () => {
             <RefreshCw className="w-4 h-4 mr-2" />
             Atualizar
           </Button>
-          <Button variant="hero" onClick={() => setMetaTokenDialogOpen(true)}>
-            <Key className="w-4 h-4 mr-2" />
-            Renovar Token
-          </Button>
         </div>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="stat-card">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
@@ -129,6 +169,30 @@ const Tokens = () => {
         
         <div className="stat-card">
           <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#4285F4]/10 flex items-center justify-center">
+              <Infinity className="w-6 h-6 text-[#4285F4]" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{googleTokens.length}</p>
+              <p className="text-sm text-muted-foreground">Google (Permanentes)</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#1877F2]/10 flex items-center justify-center">
+              <Clock className="w-6 h-6 text-[#1877F2]" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{metaTokens.length}</p>
+              <p className="text-sm text-muted-foreground">Meta (60 dias)</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
               criticalCount > 0 ? 'bg-destructive/10' : 'bg-success/10'
             }`}>
@@ -137,18 +201,6 @@ const Tokens = () => {
             <div>
               <p className="text-2xl font-bold text-foreground">{criticalCount}</p>
               <p className="text-sm text-muted-foreground">Precisam Renovação</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-              <RefreshCw className="w-6 h-6 text-accent" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">60</p>
-              <p className="text-sm text-muted-foreground">Dias de Validade</p>
             </div>
           </div>
         </div>
@@ -176,10 +228,11 @@ const Tokens = () => {
         ) : (
           <div className="divide-y divide-border">
             {tokens.map((token) => {
-              const percentage = getProgressPercentage(token.daysUntilExpiry);
-              const colorClass = getProgressColor(token.daysUntilExpiry);
-              const badge = getStatusBadge(token.daysUntilExpiry);
-              const isUrgent = token.daysUntilExpiry <= 7;
+              const percentage = getProgressPercentage(token.daysUntilExpiry, token.platform);
+              const colorClass = getProgressColor(token.daysUntilExpiry, token.platform);
+              const badge = getStatusBadge(token.daysUntilExpiry, token.platform);
+              const isUrgent = token.platform === 'meta' && token.daysUntilExpiry !== null && token.daysUntilExpiry <= 7;
+              const isGoogle = token.platform === 'google';
               
               return (
                 <div 
@@ -208,7 +261,13 @@ const Tokens = () => {
                         <p className="font-medium text-foreground">{token.account_name}</p>
                         <p className="text-xs text-muted-foreground">
                           {token.platform === 'meta' ? 'Meta Ads' : 'Google Ads'} • 
-                          Expira em {token.token_expires_at ? format(parseISO(token.token_expires_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR }) : 'N/A'}
+                          {isGoogle ? (
+                            <span className="text-success ml-1">Refresh Token (não expira)</span>
+                          ) : (
+                            token.token_expires_at ? (
+                              ` Expira em ${format(parseISO(token.token_expires_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}`
+                            ) : ' Data não definida'
+                          )}
                         </p>
                       </div>
                     </div>
@@ -217,12 +276,13 @@ const Tokens = () => {
                         {badge.text}
                       </span>
                       <span className={`text-sm font-medium min-w-[120px] text-right ${
-                        token.daysUntilExpiry <= 0 ? 'text-destructive' :
+                        isGoogle ? 'text-success' :
+                        token.daysUntilExpiry === null || token.daysUntilExpiry <= 0 ? 'text-destructive' :
                         token.daysUntilExpiry <= 3 ? 'text-destructive' : 
                         token.daysUntilExpiry <= 7 ? 'text-warning' : 
                         'text-muted-foreground'
                       }`}>
-                        {getExpiryText(token.daysUntilExpiry)}
+                        {getExpiryText(token.daysUntilExpiry, token.platform)}
                       </span>
                       {isUrgent && (
                         <Button 
@@ -253,13 +313,37 @@ const Tokens = () => {
         )}
       </div>
 
-      {/* Info Card */}
-      <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
-        <p className="text-sm text-muted-foreground">
-          <strong>💡 Dica:</strong> Os tokens do Meta Ads expiram em aproximadamente 60 dias. 
-          Renove-os antes da expiração para manter o monitoramento ativo. 
-          Tokens expirados impedem a sincronização de saldos e métricas.
-        </p>
+      {/* Info Cards */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 bg-[#4285F4]/5 rounded-lg border border-[#4285F4]/20">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#4285F4]/10 flex items-center justify-center flex-shrink-0">
+              <Infinity className="w-4 h-4 text-[#4285F4]" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground mb-1">Google Ads - Tokens Permanentes</p>
+              <p className="text-sm text-muted-foreground">
+                Os <strong>Refresh Tokens</strong> do Google Ads <strong>não expiram</strong> automaticamente. 
+                Eles só são invalidados se você revogar o acesso manualmente no Google ou alterar a senha da conta.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-4 bg-[#1877F2]/5 rounded-lg border border-[#1877F2]/20">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#1877F2]/10 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-4 h-4 text-[#1877F2]" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground mb-1">Meta Ads - Tokens de 60 dias</p>
+              <p className="text-sm text-muted-foreground">
+                Os tokens do Meta Ads expiram em aproximadamente <strong>60 dias</strong>. 
+                Renove-os antes da expiração para manter o monitoramento ativo.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Meta Token Dialog */}
@@ -267,6 +351,14 @@ const Tokens = () => {
         open={metaTokenDialogOpen}
         onOpenChange={setMetaTokenDialogOpen}
         onSubmit={connectMetaToken}
+        isLoading={isConnecting}
+      />
+      
+      {/* Google Token Dialog */}
+      <GoogleTokenDialog
+        open={googleTokenDialogOpen}
+        onOpenChange={setGoogleTokenDialogOpen}
+        onSubmit={connectGoogleToken}
         isLoading={isConnecting}
       />
     </DashboardLayout>
