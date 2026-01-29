@@ -15,10 +15,18 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const googleClientId = Deno.env.get('GOOGLE_CLIENT_ID')
     const googleClientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+    const googleDeveloperToken = Deno.env.get('GOOGLE_DEVELOPER_TOKEN')
 
     if (!googleClientId || !googleClientSecret) {
       return new Response(
         JSON.stringify({ error: 'Google OAuth credentials not configured' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!googleDeveloperToken) {
+      return new Response(
+        JSON.stringify({ error: 'Google Ads Developer Token not configured' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
