@@ -82,15 +82,16 @@ Deno.serve(async (req) => {
     })
     const userInfo = await userInfoResponse.json()
 
-    console.log('User info:', userInfo.email)
+    console.log('User info:', JSON.stringify(userInfo))
 
-    // Try to get Google Ads customers
+    // Try to get Google Ads customers using the correct API version
     let accountName = userInfo.name || 'Google Ads Account'
-    let accountId = userInfo.id
+    let accountId: string | null = null
+    let userEmail = userInfo.email || null
 
     try {
-      // List accessible customers using Google Ads API
-      const customersResponse = await fetch('https://googleads.googleapis.com/v18/customers:listAccessibleCustomers', {
+      // List accessible customers using Google Ads API v19
+      const customersResponse = await fetch('https://googleads.googleapis.com/v19/customers:listAccessibleCustomers', {
         headers: {
           'Authorization': `Bearer ${tokenData.access_token}`,
           'developer-token': developerToken,
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
 
       if (customersResponse.ok) {
         const customersData = await customersResponse.json()
-        console.log('Accessible customers:', customersData)
+        console.log('Accessible customers:', JSON.stringify(customersData))
         
         if (customersData.resourceNames && customersData.resourceNames.length > 0) {
           // Extract first customer ID (format: customers/1234567890)
@@ -110,11 +111,17 @@ Deno.serve(async (req) => {
       } else {
         const errorText = await customersResponse.text()
         console.log('Could not fetch customers:', errorText)
-        // Continue with userInfo data as fallback
       }
     } catch (adsError) {
       console.log('Google Ads API error (continuing with basic info):', adsError)
-      // Continue with userInfo data as fallback
+    }
+
+    // If we couldn't get the account ID from Google Ads API, use a fallback
+    if (!accountId) {
+      // Generate a unique account ID based on user info or timestamp
+      accountId = userInfo.id || `google_${Date.now()}`
+      accountName = userInfo.name ? `Google Ads - ${userInfo.name}` : `Google Ads Account`
+      console.log('Using fallback account ID:', accountId)
     }
 
     // Save account to database - store refresh token, client id/secret for future token refresh
@@ -125,7 +132,7 @@ Deno.serve(async (req) => {
         account_id: accountId,
         account_name: accountName,
         platform: 'google',
-        email: userInfo.email,
+        email: userEmail,
         access_token: tokenData.access_token,
         refresh_token: `${refreshToken}|${clientId}|${clientSecret}`, // Store all for future refresh
         token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
