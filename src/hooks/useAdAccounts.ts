@@ -93,7 +93,7 @@ export function useOAuthConnect() {
     return `${window.location.origin}/dashboard/accounts`;
   };
 
-  // New: Connect Meta via manual token (simpler, no OAuth setup needed)
+  // Connect Meta via manual token (simpler, no OAuth setup needed)
   const connectMetaToken = async (accessToken: string) => {
     setIsConnecting(true);
     try {
@@ -121,6 +121,40 @@ export function useOAuthConnect() {
     } catch (error: any) {
       console.error('Error connecting Meta via token:', error);
       toast.error(error.message || 'Erro ao conectar Meta Ads');
+      throw error;
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Connect Google Ads via manual refresh token
+  const connectGoogleToken = async (refreshToken: string, clientId: string, clientSecret: string) => {
+    setIsConnecting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Você precisa estar logado para conectar uma conta');
+      }
+
+      const response = await supabase.functions.invoke('connect-google-token', {
+        body: { refreshToken, clientId, clientSecret }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
+      toast.success(response.data?.message || 'Conta Google Ads conectada com sucesso!');
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Error connecting Google via token:', error);
+      toast.error(error.message || 'Erro ao conectar Google Ads');
       throw error;
     } finally {
       setIsConnecting(false);
@@ -235,6 +269,7 @@ export function useOAuthConnect() {
     connectMeta,
     connectMetaToken,
     connectGoogle,
+    connectGoogleToken,
     handleOAuthCallback
   };
 }
