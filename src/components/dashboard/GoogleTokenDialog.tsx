@@ -76,8 +76,18 @@ export function GoogleTokenDialog({ open, onOpenChange, onSubmit, isLoading }: G
           {/* Instructions */}
           <Alert>
             <AlertDescription className="text-sm">
+              <strong>⚠️ Passo Importante no Google Cloud Console:</strong>
+              <p className="mt-1 mb-2 text-xs">
+                Antes de usar o OAuth Playground, adicione este URI de redirecionamento nas suas credenciais OAuth:
+              </p>
+              <code className="block bg-muted px-2 py-1 rounded text-xs break-all mb-3">
+                https://developers.google.com/oauthplayground
+              </code>
+              
               <strong>Como obter o Refresh Token:</strong>
               <ol className="list-decimal list-inside mt-2 space-y-1">
+                <li>Vá para <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Cloud Console → Credenciais</a></li>
+                <li>Edite seu OAuth Client ID e adicione o URI acima em <strong>"URIs de redirecionamento autorizados"</strong></li>
                 <li>Acesse o <a href="https://developers.google.com/oauthplayground/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
                   OAuth Playground <ExternalLink className="w-3 h-3" />
                 </a></li>
