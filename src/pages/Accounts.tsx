@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key, Settings } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key, Settings, Type } from "lucide-react";
 import { useAdAccounts, useOAuthConnect, type AdAccount } from "@/hooks/useAdAccounts";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,7 +21,7 @@ import { GoogleTokenDialog } from "@/components/dashboard/GoogleTokenDialog";
 import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
 
 const Accounts = () => {
-  const { accounts, isLoading, deleteAccount, syncAccount, syncAllGoogleAccounts } = useAdAccounts();
+  const { accounts, isLoading, deleteAccount, syncAccount, syncAllGoogleAccounts, updateAccountNames } = useAdAccounts();
   const { isConnecting, connectMeta, connectMetaToken, connectGoogle, connectGoogleToken, handleOAuthCallback } = useOAuthConnect();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
@@ -213,19 +213,35 @@ const Accounts = () => {
       <div className="bg-card rounded-xl border border-border shadow-card">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h3 className="font-semibold text-foreground">Contas Ativas ({accounts.length})</h3>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => accounts.forEach(a => syncAccount.mutate(a.id))}
-            disabled={syncAccount.isPending}
-          >
-            {syncAccount.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
-            Sincronizar Todas
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateAccountNames.mutate()}
+              disabled={updateAccountNames.isPending}
+              title="Atualizar nomes das contas"
+            >
+              {updateAccountNames.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Type className="w-4 h-4 mr-2" />
+              )}
+              Atualizar Nomes
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => accounts.forEach(a => syncAccount.mutate(a.id))}
+              disabled={syncAccount.isPending}
+            >
+              {syncAccount.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Sincronizar Todas
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

@@ -8,6 +8,7 @@ const corsHeaders = {
 interface GoogleAdsMetrics {
   balance: number
   dailySpend: number
+  descriptiveName?: string
 }
 
 async function refreshAccessToken(
@@ -41,20 +42,69 @@ async function refreshAccessToken(
   }
 }
 
+// Get account name via searchStream using MCC
+async function getAccountNameViaMCC(
+  customerId: string,
+  accessToken: string,
+  developerToken: string,
+  loginCustomerId: string
+): Promise<string | null> {
+  try {
+    // First try to get name from customer_client (if using MCC)
+    const clientQuery = `
+      SELECT
+        customer_client.descriptive_name
+      FROM customer_client
+      WHERE customer_client.client_customer = 'customers/${customerId}'
+    `
+
+    const response = await fetch(
+      `https://googleads.googleapis.com/v19/customers/${loginCustomerId}/googleAds:searchStream`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'developer-token': developerToken,
+          'login-customer-id': loginCustomerId,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: clientQuery.trim() })
+      }
+    )
+
+    if (response.ok) {
+      const data = await response.json()
+      if (data && Array.isArray(data)) {
+        for (const batch of data) {
+          if (batch.results && batch.results.length > 0) {
+            const clientInfo = batch.results[0].customerClient
+            if (clientInfo?.descriptiveName) {
+              return clientInfo.descriptiveName
+            }
+          }
+        }
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.log(`Error getting name for ${customerId}:`, error)
+    return null
+  }
+}
+
 async function fetchGoogleAdsMetrics(
   customerId: string,
   accessToken: string,
-  developerToken: string
+  developerToken: string,
+  loginCustomerId?: string
 ): Promise<GoogleAdsMetrics> {
   try {
-    // Get today's date and 30 days ago for spend calculation
-    const today = new Date()
-    const todayStr = today.toISOString().split('T')[0].replace(/-/g, '')
-    
     console.log(`📊 Fetching Google Ads metrics for customer ${customerId}`)
 
-    // Query for account budget/balance info and today's spend
-    // Google Ads uses GAQL (Google Ads Query Language)
+    let descriptiveName: string | undefined
+
+    // Query for customer info and today's spend
     const query = `
       SELECT
         customer.id,
@@ -64,41 +114,88 @@ async function fetchGoogleAdsMetrics(
       WHERE segments.date DURING TODAY
     `
 
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'developer-token': developerToken,
+      'Content-Type': 'application/json',
+    }
+    
+    // Use login-customer-id if we have an MCC
+    if (loginCustomerId && loginCustomerId !== customerId) {
+      headers['login-customer-id'] = loginCustomerId
+    }
+
     const searchResponse = await fetch(
       `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
       {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': developerToken,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ query: query.trim() })
       }
     )
 
-    if (!searchResponse.ok) {
-      const errorText = await searchResponse.text()
-      console.log('Google Ads search error:', errorText)
-      
-      // Try alternative query for basic account info
-      return await fetchBasicMetrics(customerId, accessToken, developerToken)
-    }
-
-    const searchData = await searchResponse.json()
-    console.log('Google Ads search response:', JSON.stringify(searchData))
-
     let dailySpend = 0
-    
-    if (searchData && Array.isArray(searchData)) {
-      for (const batch of searchData) {
-        if (batch.results) {
-          for (const result of batch.results) {
-            if (result.metrics?.costMicros) {
-              dailySpend += parseInt(result.metrics.costMicros) / 1000000
+
+    if (searchResponse.ok) {
+      const searchData = await searchResponse.json()
+      console.log('Google Ads search response:', JSON.stringify(searchData))
+
+      if (searchData && Array.isArray(searchData)) {
+        for (const batch of searchData) {
+          if (batch.results) {
+            for (const result of batch.results) {
+              if (result.metrics?.costMicros) {
+                dailySpend += parseInt(result.metrics.costMicros) / 1000000
+              }
+              // Get descriptive name from the first result
+              if (!descriptiveName && result.customer?.descriptiveName) {
+                descriptiveName = result.customer.descriptiveName
+              }
             }
           }
         }
+      }
+    } else {
+      const errorText = await searchResponse.text()
+      console.log('Google Ads search error:', errorText)
+      
+      // If direct access failed and we have an MCC, try via MCC
+      if (loginCustomerId && loginCustomerId !== customerId) {
+        descriptiveName = await getAccountNameViaMCC(customerId, accessToken, developerToken, loginCustomerId) || undefined
+      }
+    }
+
+    // If we still don't have a name, try a simpler query
+    if (!descriptiveName) {
+      const simpleQuery = `
+        SELECT customer.descriptive_name
+        FROM customer
+        LIMIT 1
+      `
+      
+      try {
+        const simpleResponse = await fetch(
+          `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ query: simpleQuery.trim() })
+          }
+        )
+
+        if (simpleResponse.ok) {
+          const simpleData = await simpleResponse.json()
+          if (simpleData && Array.isArray(simpleData)) {
+            for (const batch of simpleData) {
+              if (batch.results && batch.results.length > 0) {
+                descriptiveName = batch.results[0].customer?.descriptiveName
+                break
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Simple query failed:', e)
       }
     }
 
@@ -119,11 +216,7 @@ async function fetchGoogleAdsMetrics(
         `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'developer-token': developerToken,
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({ query: budgetQuery.trim() })
         }
       )
@@ -153,67 +246,11 @@ async function fetchGoogleAdsMetrics(
       console.log('Could not fetch budget info:', budgetError)
     }
 
-    console.log(`✅ Metrics for ${customerId}: balance=${balance}, dailySpend=${dailySpend}`)
+    console.log(`✅ Metrics for ${customerId}: balance=${balance}, dailySpend=${dailySpend}, name=${descriptiveName}`)
 
-    return { balance, dailySpend }
+    return { balance, dailySpend, descriptiveName }
   } catch (error) {
     console.error('Error fetching Google Ads metrics:', error)
-    return { balance: 0, dailySpend: 0 }
-  }
-}
-
-async function fetchBasicMetrics(
-  customerId: string,
-  accessToken: string,
-  developerToken: string
-): Promise<GoogleAdsMetrics> {
-  try {
-    // Simpler query that should work for most accounts
-    const query = `
-      SELECT
-        customer.id,
-        customer.descriptive_name
-      FROM customer
-      LIMIT 1
-    `
-
-    const response = await fetch(
-      `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': developerToken,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: query.trim() })
-      }
-    )
-
-    if (response.ok) {
-      const data = await response.json()
-      console.log('Basic metrics response:', JSON.stringify(data))
-    }
-
-    // For accounts without searchStream access, try the customer resource directly
-    const customerResponse = await fetch(
-      `https://googleads.googleapis.com/v19/customers/${customerId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': developerToken,
-        }
-      }
-    )
-
-    if (customerResponse.ok) {
-      const customerData = await customerResponse.json()
-      console.log('Customer data:', JSON.stringify(customerData))
-    }
-
-    return { balance: 0, dailySpend: 0 }
-  } catch (error) {
-    console.log('Basic metrics error:', error)
     return { balance: 0, dailySpend: 0 }
   }
 }
@@ -255,9 +292,9 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}))
-    const { accountId } = body
+    const { accountId, updateNames } = body
 
-    console.log(`🔄 Syncing Google Ads balance for user ${user.id}, account: ${accountId || 'all'}`)
+    console.log(`🔄 Syncing Google Ads balance for user ${user.id}, account: ${accountId || 'all'}, updateNames: ${updateNames}`)
 
     // Fetch Google accounts for this user
     let query = supabase
@@ -292,7 +329,11 @@ Deno.serve(async (req) => {
       try {
         // Parse stored refresh token data
         const refreshTokenData = account.refresh_token || ''
-        const [refreshToken, clientId, clientSecret] = refreshTokenData.split('|')
+        const parts = refreshTokenData.split('|')
+        const refreshToken = parts[0]
+        const clientId = parts[1]
+        const clientSecret = parts[2]
+        const loginCustomerId = parts[3] // MCC ID if available
 
         if (!refreshToken || !clientId || !clientSecret) {
           console.log(`⚠️ Account ${account.account_name} missing credentials`)
@@ -332,17 +373,36 @@ Deno.serve(async (req) => {
         const metrics = await fetchGoogleAdsMetrics(
           account.account_id,
           accessToken,
-          developerToken
+          developerToken,
+          loginCustomerId
         )
 
-        // Update account with new balance and spend
+        // Build update object
+        const updateData: Record<string, unknown> = {
+          balance: metrics.balance,
+          daily_spend: metrics.dailySpend,
+          last_sync_at: new Date().toISOString()
+        }
+
+        // Update account name if we got a descriptive name and either:
+        // 1. updateNames flag is true, or
+        // 2. Current name is just the ID (Google Ads - [ID])
+        const currentNameIsJustId = account.account_name?.match(/^Google Ads - \d+(\s*\(MCC\))?$/)
+        
+        if (metrics.descriptiveName && (updateNames || currentNameIsJustId)) {
+          const isManager = account.account_name?.includes('(MCC)')
+          let newName = `Google Ads - ${metrics.descriptiveName}`
+          if (isManager) {
+            newName = `${newName} (MCC)`
+          }
+          updateData.account_name = newName
+          console.log(`📝 Updating name: ${account.account_name} -> ${newName}`)
+        }
+
+        // Update account with new data
         const { error: updateError } = await supabase
           .from('ad_accounts')
-          .update({
-            balance: metrics.balance,
-            daily_spend: metrics.dailySpend,
-            last_sync_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('id', account.id)
 
         if (updateError) {
@@ -354,13 +414,15 @@ Deno.serve(async (req) => {
             error: 'Erro ao atualizar dados'
           })
         } else {
-          console.log(`✅ Synced ${account.account_name}: balance=${metrics.balance}, spend=${metrics.dailySpend}`)
+          const newName = updateData.account_name || account.account_name
+          console.log(`✅ Synced ${newName}: balance=${metrics.balance}, spend=${metrics.dailySpend}`)
           syncResults.push({
             accountId: account.id,
-            accountName: account.account_name,
+            accountName: newName,
             success: true,
             balance: metrics.balance,
-            dailySpend: metrics.dailySpend
+            dailySpend: metrics.dailySpend,
+            nameUpdated: !!updateData.account_name
           })
         }
       } catch (accountError) {
@@ -375,11 +437,17 @@ Deno.serve(async (req) => {
     }
 
     const successCount = syncResults.filter(r => r.success).length
+    const namesUpdated = syncResults.filter(r => r.nameUpdated).length
+
+    let message = `${successCount} de ${syncResults.length} conta(s) sincronizada(s)`
+    if (namesUpdated > 0) {
+      message += `. ${namesUpdated} nome(s) atualizado(s)`
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `${successCount} de ${syncResults.length} conta(s) sincronizada(s)`,
+        message,
         results: syncResults
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
