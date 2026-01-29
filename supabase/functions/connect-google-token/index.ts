@@ -15,27 +15,38 @@ interface CustomerInfo {
 async function getCustomerDetails(
   customerId: string,
   accessToken: string,
-  developerToken: string
+  developerToken: string,
+  loginCustomerId?: string
 ): Promise<CustomerInfo | null> {
   try {
+    // First try to get the customer resource directly
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'developer-token': developerToken,
+    }
+    
+    // If we have a login customer ID (for accessing client accounts via MCC), use it
+    if (loginCustomerId) {
+      headers['login-customer-id'] = loginCustomerId
+    }
+
     const response = await fetch(
       `https://googleads.googleapis.com/v19/customers/${customerId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': developerToken,
-        }
-      }
+      { headers }
     )
 
     if (response.ok) {
       const data = await response.json()
+      console.log(`Customer ${customerId} details:`, JSON.stringify(data))
       return {
         customerId: data.id || customerId,
-        descriptiveName: data.descriptiveName || `Google Ads - ${customerId}`,
+        descriptiveName: data.descriptiveName || '',
         currencyCode: data.currencyCode || 'BRL',
         manager: data.manager || false
       }
+    } else {
+      const errorText = await response.text()
+      console.log(`Could not fetch customer ${customerId}:`, errorText)
     }
     
     return null
@@ -166,8 +177,18 @@ Deno.serve(async (req) => {
       // Get customer details
       const customerInfo = await getCustomerDetails(customerId, tokenData.access_token, developerToken)
       
-      const accountName = customerInfo?.descriptiveName || `Google Ads - ${customerId}`
+      // Format account name: "Google Ads - [Account Name]" or fallback to ID if no name
+      let accountName: string
+      if (customerInfo?.descriptiveName && customerInfo.descriptiveName.trim() !== '') {
+        accountName = `Google Ads - ${customerInfo.descriptiveName}`
+      } else {
+        accountName = `Google Ads - ${customerId}`
+      }
+      
       const isManager = customerInfo?.manager || false
+      if (isManager) {
+        accountName = `${accountName} (MCC)`
+      }
 
       // Skip manager accounts if they have sub-accounts (we'll get those separately)
       // But still save them for reference
@@ -180,7 +201,7 @@ Deno.serve(async (req) => {
           .upsert({
             user_id: user.id,
             account_id: customerId,
-            account_name: `${accountName}${isManager ? ' (MCC)' : ''}`,
+            account_name: accountName,
             platform: 'google',
             email: userEmail,
             access_token: tokenData.access_token,
@@ -247,8 +268,19 @@ Deno.serve(async (req) => {
                       const clientCustomer = result.customerClient
                       if (clientCustomer && clientCustomer.clientCustomer) {
                         const clientId = clientCustomer.clientCustomer.replace('customers/', '')
-                        const clientName = clientCustomer.descriptiveName || `Google Ads - ${clientId}`
                         const clientIsManager = clientCustomer.manager || false
+                        
+                        // Format client name: "Google Ads - [Name]"
+                        let clientName: string
+                        if (clientCustomer.descriptiveName && clientCustomer.descriptiveName.trim() !== '') {
+                          clientName = `Google Ads - ${clientCustomer.descriptiveName}`
+                        } else {
+                          clientName = `Google Ads - ${clientId}`
+                        }
+                        
+                        if (clientIsManager) {
+                          clientName = `${clientName} (MCC)`
+                        }
 
                         // Save client account
                         const { data: clientAccount, error: clientError } = await supabase
@@ -256,7 +288,7 @@ Deno.serve(async (req) => {
                           .upsert({
                             user_id: user.id,
                             account_id: clientId,
-                            account_name: `${clientName}${clientIsManager ? ' (MCC)' : ''}`,
+                            account_name: clientName,
                             platform: 'google',
                             email: userEmail,
                             access_token: tokenData.access_token,
