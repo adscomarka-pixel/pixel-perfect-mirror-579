@@ -205,14 +205,18 @@ async function fetchGoogleAdsMetrics(
       }
     }
 
-    // Try to get budget information
+    // Try to get account balance using multiple approaches
     let balance = 0
+    
+    // Approach 1: Get account budget with remaining amount
     try {
       const budgetQuery = `
         SELECT
           account_budget.approved_spending_limit_micros,
-          account_budget.spending_limit_micros,
-          account_budget.amount_micros
+          account_budget.adjusted_spending_limit_micros,
+          account_budget.amount_served_micros,
+          account_budget.total_adjustments_micros,
+          account_budget.pending_proposal.spending_limit_micros
         FROM account_budget
         WHERE account_budget.status = 'APPROVED'
       `
@@ -228,25 +232,72 @@ async function fetchGoogleAdsMetrics(
 
       if (budgetResponse.ok) {
         const budgetData = await budgetResponse.json()
+        console.log(`📦 Budget response for ${customerId}:`, JSON.stringify(budgetData))
+        
         if (budgetData && Array.isArray(budgetData)) {
           for (const batch of budgetData) {
             if (batch.results) {
               for (const result of batch.results) {
                 const budget = result.accountBudget
-                if (budget?.approvedSpendingLimitMicros) {
-                  balance = parseInt(budget.approvedSpendingLimitMicros) / 1000000
-                } else if (budget?.spendingLimitMicros) {
-                  balance = parseInt(budget.spendingLimitMicros) / 1000000
-                } else if (budget?.amountMicros) {
-                  balance = parseInt(budget.amountMicros) / 1000000
+                if (budget) {
+                  // Calculate remaining balance: approved limit - amount already served
+                  const approvedLimit = budget.approvedSpendingLimitMicros 
+                    ? parseInt(budget.approvedSpendingLimitMicros) / 1000000
+                    : (budget.adjustedSpendingLimitMicros 
+                      ? parseInt(budget.adjustedSpendingLimitMicros) / 1000000 
+                      : 0)
+                  
+                  const amountServed = budget.amountServedMicros 
+                    ? parseInt(budget.amountServedMicros) / 1000000 
+                    : 0
+                  
+                  if (approvedLimit > 0) {
+                    // Remaining balance = limit - spent
+                    balance = Math.max(0, approvedLimit - amountServed)
+                    console.log(`💰 Budget calculation: limit=${approvedLimit}, served=${amountServed}, remaining=${balance}`)
+                  }
                 }
               }
             }
           }
         }
+      } else {
+        const errorText = await budgetResponse.text()
+        console.log(`Budget query failed for ${customerId}:`, errorText)
       }
     } catch (budgetError) {
       console.log('Could not fetch budget info:', budgetError)
+    }
+
+    // Approach 2: If no budget found, try billing setup / account payments
+    if (balance === 0) {
+      try {
+        // Try to get pending payments / billing account balance
+        const billingQuery = `
+          SELECT 
+            billing_setup.id,
+            billing_setup.status,
+            billing_setup.payments_account
+          FROM billing_setup
+          WHERE billing_setup.status = 'APPROVED'
+        `
+
+        const billingResponse = await fetch(
+          `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ query: billingQuery.trim() })
+          }
+        )
+
+        if (billingResponse.ok) {
+          const billingData = await billingResponse.json()
+          console.log(`🏦 Billing response for ${customerId}:`, JSON.stringify(billingData))
+        }
+      } catch (billingError) {
+        console.log('Could not fetch billing info:', billingError)
+      }
     }
 
     console.log(`✅ Metrics for ${customerId}: balance=${balance}, dailySpend=${dailySpend}, name=${descriptiveName}, manager=${isManager}`)
