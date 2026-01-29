@@ -17,15 +17,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MetaTokenDialog } from "@/components/dashboard/MetaTokenDialog";
+import { GoogleTokenDialog } from "@/components/dashboard/GoogleTokenDialog";
 import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
 
 const Accounts = () => {
   const { accounts, isLoading, deleteAccount, syncAccount } = useAdAccounts();
-  const { isConnecting, connectMeta, connectMetaToken, connectGoogle, handleOAuthCallback } = useOAuthConnect();
+  const { isConnecting, connectMeta, connectMetaToken, connectGoogle, connectGoogleToken, handleOAuthCallback } = useOAuthConnect();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [metaTokenDialogOpen, setMetaTokenDialogOpen] = useState(false);
+  const [googleTokenDialogOpen, setGoogleTokenDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<AdAccount | null>(null);
 
@@ -116,7 +118,7 @@ const Accounts = () => {
       )}
 
       {/* Connection Options */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {/* Meta Token (manual - recommended) */}
         <button
           onClick={() => setMetaTokenDialogOpen(true)}
@@ -160,7 +162,27 @@ const Accounts = () => {
           </div>
         </button>
 
-        {/* Google Ads */}
+        {/* Google Token (manual - recommended) */}
+        <button
+          onClick={() => setGoogleTokenDialogOpen(true)}
+          disabled={isConnecting}
+          className="stat-card group cursor-pointer hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 text-left disabled:opacity-50 disabled:cursor-not-allowed relative"
+        >
+          <div className="absolute top-2 right-2">
+            <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded-full font-medium">Recomendado</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-[#4285F4]/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Key className="w-7 h-7 text-[#4285F4]" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">Google Ads (Token)</h3>
+              <p className="text-sm text-muted-foreground">Conectar via Refresh Token</p>
+            </div>
+          </div>
+        </button>
+
+        {/* Google OAuth */}
         <button
           onClick={connectGoogle}
           disabled={isConnecting}
@@ -180,8 +202,8 @@ const Accounts = () => {
               )}
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">Google Ads</h3>
-              <p className="text-sm text-muted-foreground">Conectar conta Google Ads</p>
+              <h3 className="font-semibold text-foreground">Google Ads (OAuth)</h3>
+              <p className="text-sm text-muted-foreground">Conectar via Google Login</p>
             </div>
           </div>
         </button>
@@ -323,6 +345,14 @@ const Accounts = () => {
         open={metaTokenDialogOpen}
         onOpenChange={setMetaTokenDialogOpen}
         onSubmit={connectMetaToken}
+        isLoading={isConnecting}
+      />
+
+      {/* Google Token Dialog */}
+      <GoogleTokenDialog
+        open={googleTokenDialogOpen}
+        onOpenChange={setGoogleTokenDialogOpen}
+        onSubmit={connectGoogleToken}
         isLoading={isConnecting}
       />
 

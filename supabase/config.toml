@@ -3,6 +3,9 @@ project_id = "sszlrehkyqdqwuojobej"
 [functions.connect-meta-token]
 verify_jwt = false
 
+[functions.connect-google-token]
+verify_jwt = false
+
 [functions.oauth-google]
 verify_jwt = false
 
