@@ -59,7 +59,33 @@ export function useAdAccounts() {
 
   const syncAccount = useMutation({
     mutationFn: async (accountId: string) => {
-      // Update last_sync_at timestamp
+      // Get the account to check its platform
+      const { data: account, error: fetchError } = await supabase
+        .from('ad_accounts')
+        .select('platform')
+        .eq('id', accountId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // For Google accounts, call the sync edge function
+      if (account.platform === 'google') {
+        const response = await supabase.functions.invoke('sync-google-balance', {
+          body: { accountId }
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message);
+        }
+
+        if (response.data?.error) {
+          throw new Error(response.data.error);
+        }
+
+        return response.data;
+      }
+
+      // For Meta accounts, just update the timestamp (Meta balance is fetched on connect)
       const { error } = await supabase
         .from('ad_accounts')
         .update({ last_sync_at: new Date().toISOString() })
@@ -67,11 +93,42 @@ export function useAdAccounts() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
-      toast.success('Conta sincronizada com sucesso');
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      if (data?.message) {
+        toast.success(data.message);
+      } else {
+        toast.success('Conta sincronizada com sucesso');
+      }
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      toast.error('Erro ao sincronizar: ' + error.message);
+    }
+  });
+
+  const syncAllGoogleAccounts = useMutation({
+    mutationFn: async () => {
+      const response = await supabase.functions.invoke('sync-google-balance', {
+        body: {}
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success(data?.message || 'Contas Google Ads sincronizadas');
+    },
+    onError: (error: any) => {
       toast.error('Erro ao sincronizar: ' + error.message);
     }
   });
@@ -81,7 +138,8 @@ export function useAdAccounts() {
     isLoading,
     error,
     deleteAccount,
-    syncAccount
+    syncAccount,
+    syncAllGoogleAccounts
   };
 }
 

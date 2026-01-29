@@ -21,7 +21,7 @@ import { GoogleTokenDialog } from "@/components/dashboard/GoogleTokenDialog";
 import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
 
 const Accounts = () => {
-  const { accounts, isLoading, deleteAccount, syncAccount } = useAdAccounts();
+  const { accounts, isLoading, deleteAccount, syncAccount, syncAllGoogleAccounts } = useAdAccounts();
   const { isConnecting, connectMeta, connectMetaToken, connectGoogle, connectGoogleToken, handleOAuthCallback } = useOAuthConnect();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
@@ -277,6 +277,20 @@ const Accounts = () => {
                         <span className="text-xs text-muted-foreground">
                           Última sync: {formatLastSync(account.last_sync_at)}
                         </span>
+                      </div>
+                      {/* Balance and Spend Info */}
+                      <div className="flex items-center gap-4 mt-2">
+                        <span className={`text-sm font-medium ${account.balance > 0 ? 'text-success' : 'text-muted-foreground'}`}>
+                          Saldo: R$ {(account.balance || 0).toFixed(2)}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          Gasto/dia: R$ {(account.daily_spend || 0).toFixed(2)}
+                        </span>
+                        {account.balance > 0 && account.daily_spend > 0 && (
+                          <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                            ~{Math.floor(account.balance / account.daily_spend)} dias restantes
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
