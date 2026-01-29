@@ -9,13 +9,14 @@ interface GoogleAdsMetrics {
   balance: number
   dailySpend: number
   descriptiveName?: string
+  isManager?: boolean
 }
 
 async function refreshAccessToken(
   refreshToken: string,
   clientId: string,
   clientSecret: string
-): Promise<string | null> {
+): Promise<{ accessToken: string; expiresIn: number } | null> {
   try {
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -35,62 +36,78 @@ async function refreshAccessToken(
       return null
     }
 
-    return tokenData.access_token
+    return {
+      accessToken: tokenData.access_token,
+      expiresIn: tokenData.expires_in || 3600
+    }
   } catch (error) {
     console.error('Error refreshing token:', error)
     return null
   }
 }
 
-// Get account name via searchStream using MCC
-async function getAccountNameViaMCC(
-  customerId: string,
+// Get all clients under a manager account with their descriptive names
+async function getManagerClients(
+  managerId: string,
   accessToken: string,
-  developerToken: string,
-  loginCustomerId: string
-): Promise<string | null> {
+  developerToken: string
+): Promise<Array<{ clientId: string; descriptiveName: string; isManager: boolean }>> {
+  const clients: Array<{ clientId: string; descriptiveName: string; isManager: boolean }> = []
+  
   try {
-    // First try to get name from customer_client (if using MCC)
-    const clientQuery = `
+    const query = `
       SELECT
-        customer_client.descriptive_name
+        customer_client.client_customer,
+        customer_client.descriptive_name,
+        customer_client.manager,
+        customer_client.status
       FROM customer_client
-      WHERE customer_client.client_customer = 'customers/${customerId}'
+      WHERE customer_client.status = 'ENABLED'
     `
 
     const response = await fetch(
-      `https://googleads.googleapis.com/v19/customers/${loginCustomerId}/googleAds:searchStream`,
+      `https://googleads.googleapis.com/v19/customers/${managerId}/googleAds:searchStream`,
       {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'developer-token': developerToken,
-          'login-customer-id': loginCustomerId,
+          'login-customer-id': managerId,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: clientQuery.trim() })
+        body: JSON.stringify({ query: query.trim() })
       }
     )
 
     if (response.ok) {
       const data = await response.json()
+
       if (data && Array.isArray(data)) {
         for (const batch of data) {
-          if (batch.results && batch.results.length > 0) {
-            const clientInfo = batch.results[0].customerClient
-            if (clientInfo?.descriptiveName) {
-              return clientInfo.descriptiveName
+          if (batch.results) {
+            for (const result of batch.results) {
+              const clientCustomer = result.customerClient
+              if (clientCustomer && clientCustomer.clientCustomer) {
+                const clientId = clientCustomer.clientCustomer.replace('customers/', '')
+                clients.push({
+                  clientId,
+                  descriptiveName: clientCustomer.descriptiveName || '',
+                  isManager: clientCustomer.manager || false
+                })
+              }
             }
           }
         }
       }
+    } else {
+      const errorText = await response.text()
+      console.log(`Could not fetch clients for manager ${managerId}:`, errorText)
     }
-    
-    return null
   } catch (error) {
-    console.log(`Error getting name for ${customerId}:`, error)
-    return null
+    console.log(`Error fetching clients for manager ${managerId}:`, error)
   }
+  
+  return clients
 }
 
 async function fetchGoogleAdsMetrics(
@@ -103,16 +120,7 @@ async function fetchGoogleAdsMetrics(
     console.log(`📊 Fetching Google Ads metrics for customer ${customerId}`)
 
     let descriptiveName: string | undefined
-
-    // Query for customer info and today's spend
-    const query = `
-      SELECT
-        customer.id,
-        customer.descriptive_name,
-        metrics.cost_micros
-      FROM customer
-      WHERE segments.date DURING TODAY
-    `
+    let isManager = false
 
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${accessToken}`,
@@ -120,10 +128,20 @@ async function fetchGoogleAdsMetrics(
       'Content-Type': 'application/json',
     }
     
-    // Use login-customer-id if we have an MCC
     if (loginCustomerId && loginCustomerId !== customerId) {
       headers['login-customer-id'] = loginCustomerId
     }
+
+    // Query for customer info and today's spend
+    const query = `
+      SELECT
+        customer.id,
+        customer.descriptive_name,
+        customer.manager,
+        metrics.cost_micros
+      FROM customer
+      WHERE segments.date DURING TODAY
+    `
 
     const searchResponse = await fetch(
       `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
@@ -138,7 +156,6 @@ async function fetchGoogleAdsMetrics(
 
     if (searchResponse.ok) {
       const searchData = await searchResponse.json()
-      console.log('Google Ads search response:', JSON.stringify(searchData))
 
       if (searchData && Array.isArray(searchData)) {
         for (const batch of searchData) {
@@ -147,31 +164,19 @@ async function fetchGoogleAdsMetrics(
               if (result.metrics?.costMicros) {
                 dailySpend += parseInt(result.metrics.costMicros) / 1000000
               }
-              // Get descriptive name from the first result
               if (!descriptiveName && result.customer?.descriptiveName) {
                 descriptiveName = result.customer.descriptiveName
+              }
+              if (result.customer?.manager) {
+                isManager = true
               }
             }
           }
         }
       }
     } else {
-      const errorText = await searchResponse.text()
-      console.log('Google Ads search error:', errorText)
-      
-      // If direct access failed and we have an MCC, try via MCC
-      if (loginCustomerId && loginCustomerId !== customerId) {
-        descriptiveName = await getAccountNameViaMCC(customerId, accessToken, developerToken, loginCustomerId) || undefined
-      }
-    }
-
-    // If we still don't have a name, try a simpler query
-    if (!descriptiveName) {
-      const simpleQuery = `
-        SELECT customer.descriptive_name
-        FROM customer
-        LIMIT 1
-      `
+      // Try simpler query
+      const simpleQuery = `SELECT customer.descriptive_name, customer.manager FROM customer LIMIT 1`
       
       try {
         const simpleResponse = await fetch(
@@ -189,6 +194,7 @@ async function fetchGoogleAdsMetrics(
             for (const batch of simpleData) {
               if (batch.results && batch.results.length > 0) {
                 descriptiveName = batch.results[0].customer?.descriptiveName
+                isManager = batch.results[0].customer?.manager || false
                 break
               }
             }
@@ -200,18 +206,17 @@ async function fetchGoogleAdsMetrics(
     }
 
     // Try to get budget information
-    const budgetQuery = `
-      SELECT
-        account_budget.amount_micros,
-        account_budget.spending_limit_micros,
-        account_budget.approved_spending_limit_micros
-      FROM account_budget
-      WHERE account_budget.status = 'APPROVED'
-    `
-
     let balance = 0
-
     try {
+      const budgetQuery = `
+        SELECT
+          account_budget.approved_spending_limit_micros,
+          account_budget.spending_limit_micros,
+          account_budget.amount_micros
+        FROM account_budget
+        WHERE account_budget.status = 'APPROVED'
+      `
+
       const budgetResponse = await fetch(
         `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
         {
@@ -223,8 +228,6 @@ async function fetchGoogleAdsMetrics(
 
       if (budgetResponse.ok) {
         const budgetData = await budgetResponse.json()
-        console.log('Budget response:', JSON.stringify(budgetData))
-
         if (budgetData && Array.isArray(budgetData)) {
           for (const batch of budgetData) {
             if (batch.results) {
@@ -246,9 +249,9 @@ async function fetchGoogleAdsMetrics(
       console.log('Could not fetch budget info:', budgetError)
     }
 
-    console.log(`✅ Metrics for ${customerId}: balance=${balance}, dailySpend=${dailySpend}, name=${descriptiveName}`)
+    console.log(`✅ Metrics for ${customerId}: balance=${balance}, dailySpend=${dailySpend}, name=${descriptiveName}, manager=${isManager}`)
 
-    return { balance, dailySpend, descriptiveName }
+    return { balance, dailySpend, descriptiveName, isManager }
   } catch (error) {
     console.error('Error fetching Google Ads metrics:', error)
     return { balance: 0, dailySpend: 0 }
@@ -292,9 +295,9 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}))
-    const { accountId, updateNames } = body
+    const { accountId, fullRefresh } = body
 
-    console.log(`🔄 Syncing Google Ads balance for user ${user.id}, account: ${accountId || 'all'}, updateNames: ${updateNames}`)
+    console.log(`🔄 Syncing Google Ads for user ${user.id}, account: ${accountId || 'all'}, fullRefresh: ${fullRefresh}`)
 
     // Fetch Google accounts for this user
     let query = supabase
@@ -324,16 +327,17 @@ Deno.serve(async (req) => {
     console.log(`📊 Found ${accounts.length} Google Ads account(s) to sync`)
 
     const syncResults = []
+    const processedCredentials = new Set<string>()
+    let newAccountsCount = 0
 
     for (const account of accounts) {
       try {
-        // Parse stored refresh token data
         const refreshTokenData = account.refresh_token || ''
         const parts = refreshTokenData.split('|')
         const refreshToken = parts[0]
         const clientId = parts[1]
         const clientSecret = parts[2]
-        const loginCustomerId = parts[3] // MCC ID if available
+        const storedMccId = parts[3]
 
         if (!refreshToken || !clientId || !clientSecret) {
           console.log(`⚠️ Account ${account.account_name} missing credentials`)
@@ -346,10 +350,12 @@ Deno.serve(async (req) => {
           continue
         }
 
+        const credentialKey = `${refreshToken}|${clientId}`
+        
         // Refresh access token
-        const accessToken = await refreshAccessToken(refreshToken, clientId, clientSecret)
+        const tokenResult = await refreshAccessToken(refreshToken, clientId, clientSecret)
 
-        if (!accessToken) {
+        if (!tokenResult) {
           console.log(`⚠️ Could not refresh token for ${account.account_name}`)
           syncResults.push({
             accountId: account.id,
@@ -360,53 +366,142 @@ Deno.serve(async (req) => {
           continue
         }
 
-        // Update access token in database
+        const { accessToken, expiresIn } = tokenResult
+
+        // If fullRefresh and we haven't processed these credentials yet, discover new accounts
+        if (fullRefresh && !processedCredentials.has(credentialKey)) {
+          processedCredentials.add(credentialKey)
+          
+          console.log(`🔍 Discovering new accounts for credential set...`)
+          
+          // List all accessible customers
+          const customersResponse = await fetch('https://googleads.googleapis.com/v19/customers:listAccessibleCustomers', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'developer-token': developerToken,
+            }
+          })
+
+          if (customersResponse.ok) {
+            const customersData = await customersResponse.json()
+            
+            if (customersData.resourceNames) {
+              const allAccountsMap = new Map<string, { name: string; isManager: boolean; parentMcc?: string }>()
+              
+              for (const resourceName of customersData.resourceNames) {
+                const customerId = resourceName.replace('customers/', '')
+                
+                // Try to get clients from this account (works if it's a manager)
+                const clients = await getManagerClients(customerId, accessToken, developerToken)
+                
+                if (clients.length > 0) {
+                  // This is a manager account
+                  const managerEntry = clients.find(c => c.clientId === customerId)
+                  allAccountsMap.set(customerId, {
+                    name: managerEntry?.descriptiveName || '',
+                    isManager: true
+                  })
+                  
+                  for (const client of clients) {
+                    if (client.clientId !== customerId) {
+                      allAccountsMap.set(client.clientId, {
+                        name: client.descriptiveName,
+                        isManager: client.isManager,
+                        parentMcc: customerId
+                      })
+                    }
+                  }
+                } else {
+                  if (!allAccountsMap.has(customerId)) {
+                    allAccountsMap.set(customerId, { name: '', isManager: false })
+                  }
+                }
+              }
+
+              // Check for new accounts and add them
+              const existingAccountIds = new Set(accounts.map(a => a.account_id))
+              
+              for (const [accountIdStr, info] of allAccountsMap.entries()) {
+                if (!existingAccountIds.has(accountIdStr)) {
+                  // New account found!
+                  let accountName = info.name && info.name.trim() !== '' 
+                    ? `Google Ads - ${info.name}` 
+                    : `Google Ads - ${accountIdStr}`
+                  
+                  if (info.isManager) {
+                    accountName = `${accountName} (MCC)`
+                  }
+
+                  const refreshTokenForNew = info.parentMcc 
+                    ? `${refreshToken}|${clientId}|${clientSecret}|${info.parentMcc}`
+                    : `${refreshToken}|${clientId}|${clientSecret}`
+
+                  const { error: insertError } = await supabase
+                    .from('ad_accounts')
+                    .insert({
+                      user_id: user.id,
+                      account_id: accountIdStr,
+                      account_name: accountName,
+                      platform: 'google',
+                      email: account.email,
+                      access_token: accessToken,
+                      refresh_token: refreshTokenForNew,
+                      token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+                      status: 'active',
+                      last_sync_at: new Date().toISOString()
+                    })
+
+                  if (!insertError) {
+                    console.log(`✅ New account discovered: ${accountName}`)
+                    newAccountsCount++
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Update access token
         await supabase
           .from('ad_accounts')
           .update({
             access_token: accessToken,
-            token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString()
+            token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString()
           })
           .eq('id', account.id)
 
-        // Fetch metrics from Google Ads API
+        // Fetch metrics
         const metrics = await fetchGoogleAdsMetrics(
           account.account_id,
           accessToken,
           developerToken,
-          loginCustomerId
+          storedMccId
         )
 
-        // Build update object
+        // Build update
         const updateData: Record<string, unknown> = {
           balance: metrics.balance,
           daily_spend: metrics.dailySpend,
           last_sync_at: new Date().toISOString()
         }
 
-        // Update account name if we got a descriptive name and either:
-        // 1. updateNames flag is true, or
-        // 2. Current name is just the ID (Google Ads - [ID])
+        // Update name if we got one and current name is just ID
         const currentNameIsJustId = account.account_name?.match(/^Google Ads - \d+(\s*\(MCC\))?$/)
         
-        if (metrics.descriptiveName && (updateNames || currentNameIsJustId)) {
-          const isManager = account.account_name?.includes('(MCC)')
+        if (metrics.descriptiveName && (fullRefresh || currentNameIsJustId)) {
           let newName = `Google Ads - ${metrics.descriptiveName}`
-          if (isManager) {
+          if (metrics.isManager || account.account_name?.includes('(MCC)')) {
             newName = `${newName} (MCC)`
           }
           updateData.account_name = newName
-          console.log(`📝 Updating name: ${account.account_name} -> ${newName}`)
         }
 
-        // Update account with new data
         const { error: updateError } = await supabase
           .from('ad_accounts')
           .update(updateData)
           .eq('id', account.id)
 
         if (updateError) {
-          console.error(`Error updating account ${account.account_name}:`, updateError)
           syncResults.push({
             accountId: account.id,
             accountName: account.account_name,
@@ -440,6 +535,9 @@ Deno.serve(async (req) => {
     const namesUpdated = syncResults.filter(r => r.nameUpdated).length
 
     let message = `${successCount} de ${syncResults.length} conta(s) sincronizada(s)`
+    if (newAccountsCount > 0) {
+      message += `. ${newAccountsCount} nova(s) conta(s) descoberta(s)`
+    }
     if (namesUpdated > 0) {
       message += `. ${namesUpdated} nome(s) atualizado(s)`
     }
@@ -448,7 +546,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         message,
-        results: syncResults
+        results: syncResults,
+        newAccounts: newAccountsCount
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
