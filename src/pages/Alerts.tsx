@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -58,12 +59,24 @@ const Alerts = () => {
     }
   });
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['ad-accounts-alerts'] });
-    queryClient.invalidateQueries({ queryKey: ['all-alerts'] });
-    queryClient.invalidateQueries({ queryKey: ['notification-alerts'] });
-    queryClient.invalidateQueries({ queryKey: ['unread-alerts-count'] });
-    queryClient.invalidateQueries({ queryKey: ['webhook-integrations'] });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['ad-accounts-alerts'] }),
+        queryClient.refetchQueries({ queryKey: ['all-alerts'] }),
+        queryClient.refetchQueries({ queryKey: ['notification-alerts'] }),
+        queryClient.refetchQueries({ queryKey: ['unread-alerts-count'] }),
+        queryClient.refetchQueries({ queryKey: ['webhook-integrations'] }),
+      ]);
+      toast.success('Dados atualizados com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao atualizar dados');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -93,9 +106,10 @@ const Alerts = () => {
           <Button 
             variant="outline" 
             onClick={handleRefresh}
+            disabled={isRefreshing}
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Atualizar
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Atualizando...' : 'Atualizar'}
           </Button>
         </div>
       </div>
