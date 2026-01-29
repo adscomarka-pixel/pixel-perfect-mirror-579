@@ -135,26 +135,41 @@ export function useAdAccounts() {
 
   const updateAccountNames = useMutation({
     mutationFn: async () => {
-      const response = await supabase.functions.invoke('sync-google-balance', {
-        body: { updateNames: true }
+      // Full refresh for Google accounts
+      const googleResponse = await supabase.functions.invoke('sync-google-balance', {
+        body: { fullRefresh: true }
       });
 
-      if (response.error) {
-        throw new Error(response.error.message);
+      // Full refresh for Meta accounts
+      const metaResponse = await supabase.functions.invoke('sync-meta-balance', {
+        body: { fullRefresh: true }
+      }).catch(() => ({ data: null, error: null })); // Meta sync might not exist yet
+
+      if (googleResponse.error) {
+        throw new Error(googleResponse.error.message);
       }
 
-      if (response.data?.error) {
-        throw new Error(response.data.error);
+      if (googleResponse.data?.error) {
+        throw new Error(googleResponse.data.error);
       }
 
-      return response.data;
+      return {
+        google: googleResponse.data,
+        meta: metaResponse.data
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
-      toast.success(data?.message || 'Nomes das contas atualizados');
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      
+      const messages: string[] = [];
+      if (data.google?.message) messages.push(data.google.message);
+      if (data.meta?.message) messages.push(data.meta.message);
+      
+      toast.success(messages.join(' | ') || 'Sincronização completa realizada');
     },
     onError: (error: any) => {
-      toast.error('Erro ao atualizar nomes: ' + error.message);
+      toast.error('Erro na sincronização: ' + error.message);
     }
   });
 

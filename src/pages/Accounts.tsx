@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key, Settings, Type } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2, AlertCircle, Key, Settings } from "lucide-react";
 import { useAdAccounts, useOAuthConnect, type AdAccount } from "@/hooks/useAdAccounts";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -218,28 +218,15 @@ const Accounts = () => {
               variant="outline" 
               size="sm"
               onClick={() => updateAccountNames.mutate()}
-              disabled={updateAccountNames.isPending}
-              title="Atualizar nomes das contas"
+              disabled={updateAccountNames.isPending || syncAccount.isPending}
+              title="Sincronização completa: atualiza nomes, saldos e descobre novas contas"
             >
               {updateAccountNames.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
-                <Type className="w-4 h-4 mr-2" />
-              )}
-              Atualizar Nomes
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => accounts.forEach(a => syncAccount.mutate(a.id))}
-              disabled={syncAccount.isPending}
-            >
-              {syncAccount.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
                 <RefreshCw className="w-4 h-4 mr-2" />
               )}
-              Sincronizar Todas
+              Sincronização Completa
             </Button>
           </div>
         </div>
