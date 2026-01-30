@@ -509,7 +509,7 @@ const Guide = () => {
                   <div className="text-left">
                     <h3 className="font-semibold">Como gerar relatórios</h3>
                     <p className="text-sm text-muted-foreground font-normal">
-                      Crie relatórios de performance personalizados
+                      Crie relatórios de performance por objetivo de campanha
                     </p>
                   </div>
                 </div>
@@ -518,30 +518,114 @@ const Guide = () => {
                 <div className="space-y-4 text-sm">
                   <p>
                     O sistema gera relatórios individuais para cada conta de anúncios conectada. 
-                    Cada relatório contém métricas de investimento, mensagens e custo por mensagem.
+                    Para contas Meta Ads, você pode configurar <strong>múltiplos objetivos de campanha</strong> e 
+                    o sistema gerará um relatório específico para cada objetivo selecionado.
                   </p>
-                  <ol className="list-decimal list-inside space-y-3 ml-2">
-                    <li>
-                      <strong>Acesse a página de Relatórios</strong> - Navegue até o menu "Relatórios"
-                    </li>
-                    <li>
-                      <strong>Configure o período</strong> - Selecione as datas de início e fim do relatório
-                    </li>
-                    <li>
-                      <strong>Clique em "Gerar Relatório Agora"</strong> - O sistema buscará os dados da API do Meta
-                    </li>
-                    <li>
-                      <strong>Visualize os relatórios</strong> - Acesse a aba "Notificações" para ver os relatórios gerados
-                    </li>
-                  </ol>
+
+                  {/* Filtro por plataforma */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">1</Badge>
+                      Filtrar contas por plataforma
+                    </h4>
+                    <p className="ml-4 text-muted-foreground">
+                      Use os botões de filtro na página de Relatórios para visualizar apenas as contas 
+                      de uma plataforma específica:
+                    </p>
+                    <div className="flex items-center gap-2 ml-4 flex-wrap">
+                      <span className="px-3 py-1.5 bg-muted rounded-md text-sm font-medium">Todas</span>
+                      <span className="px-3 py-1.5 bg-muted rounded-md text-sm font-medium flex items-center gap-1.5">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#1877F2">
+                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                        </svg>
+                        Meta
+                      </span>
+                      <span className="px-3 py-1.5 bg-muted rounded-md text-sm font-medium flex items-center gap-1.5">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        Google
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Configurar objetivos */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">2</Badge>
+                      Configurar objetivos de campanha (Meta Ads)
+                    </h4>
+                    <p className="ml-4 text-muted-foreground">
+                      Para contas Meta Ads, clique no ícone de engrenagem (⚙️) para definir quais 
+                      objetivos de campanha devem ser incluídos nos relatórios:
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 ml-4">
+                      <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                        <span>💬</span>
+                        <span className="text-sm">Mensagens</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                        <span>📋</span>
+                        <span className="text-sm">Leads</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                        <span>🎯</span>
+                        <span className="text-sm">Conversões</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                        <span>🔗</span>
+                        <span className="text-sm">Tráfego</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                        <span>❤️</span>
+                        <span className="text-sm">Engajamento</span>
+                      </div>
+                    </div>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 ml-4">
+                      <p className="text-blue-600 dark:text-blue-400 text-xs">
+                        <strong>💡 Dica:</strong> Se você selecionar múltiplos objetivos, o sistema gerará 
+                        um relatório separado para cada objetivo, com métricas específicas (ex: "custo por lead" 
+                        vs "custo por mensagem").
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Gerar relatório */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">3</Badge>
+                      Gerar relatório
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>Configure o período desejado (data de início e fim)</li>
+                      <li>Clique em <strong>"Gerar Relatório Agora"</strong></li>
+                      <li>Acesse a aba <strong>"Notificações"</strong> para ver os relatórios gerados</li>
+                    </ol>
+                  </div>
+
+                  {/* Exemplos de formato */}
                   <div className="bg-muted/50 rounded-lg p-4 mt-4">
-                    <p className="font-medium mb-2">Formato do relatório:</p>
-                    <div className="bg-background rounded p-3 font-mono text-xs">
-                      📊 [Nome da Conta]<br />
-                      📅 Período: DD/MM - DD/MM<br />
-                      💰 Investimento total: R$ X.XXX,XX<br />
-                      💬 Mensagens iniciadas: XXX<br />
-                      📈 Custo por mensagens: R$ XX,XX
+                    <p className="font-medium mb-3">Exemplos de relatórios por objetivo:</p>
+                    <div className="grid gap-3">
+                      <div className="bg-background rounded p-3 font-mono text-xs">
+                        <p className="text-muted-foreground mb-1">💬 Objetivo: Mensagens</p>
+                        📊 [Nome da Conta]<br />
+                        📅 Período: DD/MM - DD/MM<br />
+                        💰 Investimento total: R$ X.XXX,XX<br />
+                        💬 Mensagens iniciadas: XXX<br />
+                        📈 Custo por mensagem: R$ XX,XX
+                      </div>
+                      <div className="bg-background rounded p-3 font-mono text-xs">
+                        <p className="text-muted-foreground mb-1">📋 Objetivo: Leads</p>
+                        📊 [Nome da Conta]<br />
+                        📅 Período: DD/MM - DD/MM<br />
+                        💰 Investimento total: R$ X.XXX,XX<br />
+                        📋 Leads gerados: XXX<br />
+                        📈 Custo por lead: R$ XX,XX
+                      </div>
                     </div>
                   </div>
                 </div>
