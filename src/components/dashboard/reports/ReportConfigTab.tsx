@@ -18,9 +18,10 @@ import {
   Calendar,
   Settings
 } from "lucide-react";
-import { useAdAccounts, type AdAccount } from "@/hooks/useAdAccounts";
+import { useAdAccounts, type AdAccount, CAMPAIGN_OBJECTIVES } from "@/hooks/useAdAccounts";
 import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 export function ReportConfigTab() {
   const queryClient = useQueryClient();
@@ -181,14 +182,16 @@ export function ReportConfigTab() {
                     </div>
                     <div>
                       <p className="font-medium text-foreground">{account.account_name}</p>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span>Saldo: R$ {(account.balance || 0).toFixed(2)}</span>
-                        <span>•</span>
-                        <span>Alerta: R$ {(account.min_balance_alert || 500).toFixed(2)}</span>
-                        <span>•</span>
-                        <span className={account.alert_enabled ? "text-success" : "text-muted-foreground"}>
-                          {account.alert_enabled ? "Alertas ativos" : "Alertas desativados"}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {(account.report_objectives || ['MESSAGES']).map(obj => {
+                          const config = CAMPAIGN_OBJECTIVES.find(o => o.value === obj);
+                          return config ? (
+                            <Badge key={obj} variant="secondary" className="text-xs gap-1">
+                              <span>{config.icon}</span>
+                              {config.label}
+                            </Badge>
+                          ) : null;
+                        })}
                       </div>
                     </div>
                   </div>
@@ -213,28 +216,75 @@ export function ReportConfigTab() {
       {/* Report Format Preview */}
       <div className="bg-card rounded-xl border border-border shadow-card">
         <div className="p-4 border-b border-border">
-          <h3 className="font-semibold text-foreground">Prévia do Formato (por conta)</h3>
+          <h3 className="font-semibold text-foreground">Prévia dos Formatos de Relatório</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Cada objetivo de campanha gera um relatório com métricas específicas
+          </p>
         </div>
-        <div className="p-6">
-          <pre className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-4">
-{`Bom dia,
-
-Segue o relatório de desempenho da conta de anúncios
-
-Produto: [Nome da Conta de Anúncios]
-
-📅 Período analisado: Últimos ${periodDays} dias 
-
-💰 Investimento total: R$ X.XXX,XX 
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Messages Template */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">💬</span>
+              <h4 className="font-medium text-sm">Mensagens</h4>
+            </div>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3">
+{`💰 Investimento total: R$ X.XXX,XX
 
 💬 Mensagens iniciadas: X.XXX
 
-📈 Custo por mensagens: R$ X,XX
+📈 Custo por mensagens: R$ X,XX`}
+            </pre>
+          </div>
 
-Vamo pra cima!! 🚀`}
-          </pre>
-          <p className="text-xs text-muted-foreground mt-3">
-            * Cada conta de anúncios terá seu próprio relatório individual
+          {/* Leads Template */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📋</span>
+              <h4 className="font-medium text-sm">Leads</h4>
+            </div>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3">
+{`💰 Investimento total: R$ X.XXX,XX
+
+📋 Leads gerados: X.XXX
+
+📈 Custo por leads: R$ X,XX`}
+            </pre>
+          </div>
+
+          {/* Conversions Template */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎯</span>
+              <h4 className="font-medium text-sm">Conversões</h4>
+            </div>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3">
+{`💰 Investimento total: R$ X.XXX,XX
+
+🎯 Conversões realizadas: X.XXX
+
+📈 Custo por conversões: R$ X,XX`}
+            </pre>
+          </div>
+
+          {/* Traffic Template */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🔗</span>
+              <h4 className="font-medium text-sm">Tráfego</h4>
+            </div>
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3">
+{`💰 Investimento total: R$ X.XXX,XX
+
+🔗 Cliques no link: X.XXX
+
+📈 Custo por cliques: R$ X,XX`}
+            </pre>
+          </div>
+        </div>
+        <div className="px-6 pb-6">
+          <p className="text-xs text-muted-foreground">
+            * Configure os objetivos de cada conta clicando no ícone de engrenagem na lista acima
           </p>
         </div>
       </div>
