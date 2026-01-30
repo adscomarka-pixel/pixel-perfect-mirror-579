@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface ReportData {
   periodDays?: number;
+  accountId?: string; // Optional: generate report for a specific account only
 }
 
 interface AdAccount {
@@ -422,6 +423,7 @@ Deno.serve(async (req) => {
     }
 
     const periodDays = requestData.periodDays || 7
+    const accountId = requestData.accountId // Optional: specific account ID
 
     const endDate = new Date()
     const startDate = new Date()
@@ -431,23 +433,30 @@ Deno.serve(async (req) => {
       return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     }
 
-    // Fetch all ad accounts for this user with access_token
-    const { data: accounts, error: accountsError } = await supabase
+    // Fetch ad accounts - either specific or all
+    let accountsQuery = supabase
       .from('ad_accounts')
       .select('id, account_id, account_name, platform, access_token, balance, daily_spend, report_objectives')
       .eq('user_id', user.id)
+    
+    if (accountId) {
+      accountsQuery = accountsQuery.eq('id', accountId)
+      console.log(`📊 Generating report for specific account: ${accountId}`)
+    }
+
+    const { data: accounts, error: accountsError } = await accountsQuery
 
     if (accountsError) {
       console.error('❌ Error fetching accounts:', accountsError)
       throw accountsError
     }
 
-    console.log(`📊 Found ${accounts?.length || 0} accounts for user`)
+    console.log(`📊 Found ${accounts?.length || 0} account(s) for user`)
 
     if (!accounts || accounts.length === 0) {
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Nenhuma conta de anúncios encontrada' 
+        error: accountId ? 'Conta de anúncios não encontrada' : 'Nenhuma conta de anúncios encontrada' 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400

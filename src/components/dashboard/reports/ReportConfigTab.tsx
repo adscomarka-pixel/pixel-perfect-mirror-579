@@ -16,7 +16,8 @@ import {
   Settings2, 
   TrendingUp,
   Calendar,
-  Settings
+  Settings,
+  Play
 } from "lucide-react";
 import { useAdAccounts, type AdAccount, CAMPAIGN_OBJECTIVES } from "@/hooks/useAdAccounts";
 import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
@@ -39,14 +40,21 @@ export function ReportConfigTab() {
     return account.platform === platformFilter;
   });
 
-  // Generate report mutation
+  const [generatingAccountId, setGeneratingAccountId] = useState<string | null>(null);
+
+  // Generate report mutation (for all accounts or single account)
   const generateReportMutation = useMutation({
-    mutationFn: async () => {
-      setIsGenerating(true);
+    mutationFn: async (accountId?: string) => {
+      if (accountId) {
+        setGeneratingAccountId(accountId);
+      } else {
+        setIsGenerating(true);
+      }
       
       const { data, error } = await supabase.functions.invoke('generate-report', {
         body: {
           periodDays: parseInt(periodDays),
+          accountId: accountId || undefined,
         }
       });
       
@@ -57,15 +65,22 @@ export function ReportConfigTab() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      toast.success(`${data.summary.successCount} relatórios gerados!`, {
-        description: `${data.summary.totalAccounts} contas processadas • ${data.summary.periodStart} a ${data.summary.periodEnd}`
-      });
+      if (data.summary.totalAccounts === 1) {
+        toast.success(`Relatório gerado com sucesso!`, {
+          description: `Período: ${data.summary.periodStart} a ${data.summary.periodEnd}`
+        });
+      } else {
+        toast.success(`${data.summary.successCount} relatórios gerados!`, {
+          description: `${data.summary.totalAccounts} contas processadas • ${data.summary.periodStart} a ${data.summary.periodEnd}`
+        });
+      }
     },
     onError: (error) => {
       toast.error('Erro ao gerar relatórios: ' + error.message);
     },
     onSettled: () => {
       setIsGenerating(false);
+      setGeneratingAccountId(null);
     }
   });
 
@@ -132,7 +147,7 @@ export function ReportConfigTab() {
             <Button 
               variant="hero"
               size="lg"
-              onClick={() => generateReportMutation.mutate()}
+              onClick={() => generateReportMutation.mutate(undefined)}
               disabled={isGenerating}
               className="w-full md:w-auto"
             >
@@ -247,17 +262,33 @@ export function ReportConfigTab() {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setSelectedAccount(account);
-                      setConfigDialogOpen(true);
-                    }}
-                    className="hover:bg-muted"
-                  >
-                    <Settings2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateReportMutation.mutate(account.id)}
+                      disabled={generatingAccountId === account.id}
+                      className="gap-1.5"
+                    >
+                      {generatingAccountId === account.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5" />
+                      )}
+                      Gerar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedAccount(account);
+                        setConfigDialogOpen(true);
+                      }}
+                      className="hover:bg-muted"
+                    >
+                      <Settings2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
