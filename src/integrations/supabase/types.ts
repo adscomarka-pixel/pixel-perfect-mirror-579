@@ -29,6 +29,7 @@ export type Database = {
           min_balance_alert: number | null
           platform: string
           refresh_token: string | null
+          report_objectives: string[] | null
           status: string | null
           token_expires_at: string | null
           updated_at: string
@@ -48,6 +49,7 @@ export type Database = {
           min_balance_alert?: number | null
           platform: string
           refresh_token?: string | null
+          report_objectives?: string[] | null
           status?: string | null
           token_expires_at?: string | null
           updated_at?: string
@@ -67,6 +69,7 @@ export type Database = {
           min_balance_alert?: number | null
           platform?: string
           refresh_token?: string | null
+          report_objectives?: string[] | null
           status?: string | null
           token_expires_at?: string | null
           updated_at?: string

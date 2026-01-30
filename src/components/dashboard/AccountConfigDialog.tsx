@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import { Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import type { AdAccount } from "@/hooks/useAdAccounts";
+import { type AdAccount, type MetaCampaignObjective, CAMPAIGN_OBJECTIVES } from "@/hooks/useAdAccounts";
 
 interface AccountConfigDialogProps {
   account: AdAccount | null;
@@ -31,6 +32,7 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
   const [accountName, setAccountName] = useState("");
   const [minBalanceAlert, setMinBalanceAlert] = useState(500);
   const [alertEnabled, setAlertEnabled] = useState(true);
+  const [reportObjectives, setReportObjectives] = useState<MetaCampaignObjective[]>(['MESSAGES']);
   
   // Reset form when account changes
   useEffect(() => {
@@ -38,11 +40,31 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
       setAccountName(account.account_name);
       setMinBalanceAlert(account.min_balance_alert || 500);
       setAlertEnabled(account.alert_enabled ?? true);
+      setReportObjectives(account.report_objectives || ['MESSAGES']);
     }
   }, [account]);
 
+  const toggleObjective = (objective: MetaCampaignObjective) => {
+    setReportObjectives(prev => {
+      if (prev.includes(objective)) {
+        // Don't allow removing the last objective
+        if (prev.length === 1) {
+          toast.error("Selecione pelo menos um objetivo de campanha");
+          return prev;
+        }
+        return prev.filter(o => o !== objective);
+      }
+      return [...prev, objective];
+    });
+  };
+
   const handleSave = async () => {
     if (!account) return;
+    
+    if (reportObjectives.length === 0) {
+      toast.error("Selecione pelo menos um objetivo de campanha");
+      return;
+    }
     
     setIsSaving(true);
     try {
@@ -52,6 +74,7 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
           account_name: accountName,
           min_balance_alert: minBalanceAlert,
           alert_enabled: alertEnabled,
+          report_objectives: reportObjectives,
         })
         .eq("id", account.id);
 
@@ -186,6 +209,52 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
               </div>
             )}
           </div>
+
+          {/* Campaign Objectives - Only for Meta accounts */}
+          {account.platform === "meta" && (
+            <div className="space-y-3">
+              <div>
+                <Label>Objetivos de Campanha para Relatórios</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecione os objetivos. Um relatório será gerado para cada objetivo selecionado.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {CAMPAIGN_OBJECTIVES.map((objective) => (
+                  <div
+                    key={objective.value}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                      reportObjectives.includes(objective.value)
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50"
+                    }`}
+                    onClick={() => toggleObjective(objective.value)}
+                  >
+                    <Checkbox
+                      checked={reportObjectives.includes(objective.value)}
+                      onCheckedChange={() => toggleObjective(objective.value)}
+                      className="pointer-events-none"
+                    />
+                    <div className="flex-1">
+                      <span className="text-lg mr-2">{objective.icon}</span>
+                      <span className="text-sm font-medium">{objective.label}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {reportObjectives.length > 1 && (
+                <div className="bg-accent/10 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-accent">📊 {reportObjectives.length} relatórios</strong> serão gerados para esta conta:
+                    {" "}
+                    {reportObjectives.map(obj => 
+                      CAMPAIGN_OBJECTIVES.find(o => o.value === obj)?.label
+                    ).join(", ")}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Account Info */}
           <div className="bg-muted/30 rounded-lg p-4 space-y-2">

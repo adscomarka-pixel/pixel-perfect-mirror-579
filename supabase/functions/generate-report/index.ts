@@ -17,6 +17,7 @@ interface AdAccount {
   access_token: string;
   balance: number;
   daily_spend: number;
+  report_objectives: string[] | null;
 }
 
 interface MetaInsights {
@@ -25,6 +26,88 @@ interface MetaInsights {
   clicks: number;
   actions?: Array<{ action_type: string; value: string }>;
 }
+
+type CampaignObjective = 'MESSAGES' | 'LEADS' | 'CONVERSIONS' | 'TRAFFIC' | 'ENGAGEMENT';
+
+// Configuration for each objective type
+const OBJECTIVE_CONFIG: Record<CampaignObjective, {
+  label: string;
+  actionTypes: string[];
+  metricName: string;
+  metricLabel: string;
+  emoji: string;
+  estimateDivisor: number; // For fallback estimation
+}> = {
+  MESSAGES: {
+    label: 'Mensagens',
+    actionTypes: [
+      'onsite_conversion.messaging_conversation_started_7d',
+      'onsite_conversion.messaging_first_reply',
+      'onsite_conversion.messaging_block',
+      'contact',
+    ],
+    metricName: 'mensagens',
+    metricLabel: 'Mensagens iniciadas',
+    emoji: '💬',
+    estimateDivisor: 30, // Avg R$30 per message
+  },
+  LEADS: {
+    label: 'Leads',
+    actionTypes: [
+      'lead',
+      'onsite_conversion.lead_grouped',
+      'submit_application',
+      'complete_registration',
+    ],
+    metricName: 'leads',
+    metricLabel: 'Leads gerados',
+    emoji: '📋',
+    estimateDivisor: 50, // Avg R$50 per lead
+  },
+  CONVERSIONS: {
+    label: 'Conversões',
+    actionTypes: [
+      'purchase',
+      'omni_purchase',
+      'onsite_conversion.purchase',
+      'offsite_conversion.fb_pixel_purchase',
+      'add_to_cart',
+      'initiate_checkout',
+    ],
+    metricName: 'conversões',
+    metricLabel: 'Conversões realizadas',
+    emoji: '🎯',
+    estimateDivisor: 100, // Avg R$100 per conversion
+  },
+  TRAFFIC: {
+    label: 'Tráfego',
+    actionTypes: [
+      'link_click',
+      'landing_page_view',
+      'outbound_click',
+    ],
+    metricName: 'cliques',
+    metricLabel: 'Cliques no link',
+    emoji: '🔗',
+    estimateDivisor: 2, // Avg R$2 per click
+  },
+  ENGAGEMENT: {
+    label: 'Engajamento',
+    actionTypes: [
+      'post_engagement',
+      'page_engagement',
+      'like',
+      'comment',
+      'share',
+      'video_view',
+      'photo_view',
+    ],
+    metricName: 'engajamentos',
+    metricLabel: 'Engajamentos',
+    emoji: '👍',
+    estimateDivisor: 0.5, // Avg R$0.50 per engagement
+  },
+};
 
 async function fetchMetaInsights(
   accountId: string,
@@ -78,28 +161,22 @@ async function fetchMetaInsights(
   }
 }
 
-function getMessagingActions(actions: Array<{ action_type: string; value: string }> | undefined): number {
+function getActionsForObjective(
+  actions: Array<{ action_type: string; value: string }> | undefined,
+  objective: CampaignObjective
+): number {
   if (!actions || actions.length === 0) return 0;
 
-  // Look for messaging-related actions
-  const messagingTypes = [
-    'onsite_conversion.messaging_conversation_started_7d',
-    'onsite_conversion.messaging_first_reply',
-    'onsite_conversion.messaging_block',
-    'onsite_conversion.lead_grouped',
-    'lead',
-    'contact',
-    'submit_application'
-  ];
+  const config = OBJECTIVE_CONFIG[objective];
+  let total = 0;
 
-  let totalMessages = 0;
   for (const action of actions) {
-    if (messagingTypes.includes(action.action_type)) {
-      totalMessages += parseInt(action.value || '0');
+    if (config.actionTypes.includes(action.action_type)) {
+      total += parseInt(action.value || '0');
     }
   }
 
-  return totalMessages;
+  return total;
 }
 
 async function sendWebhookNotifications(supabase: any, report: any, userId: string) {
@@ -135,6 +212,7 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
             period_start: report.period_start,
             period_end: report.period_end,
             created_at: report.created_at,
+            objective: report.objective,
           },
         }
 
@@ -160,52 +238,44 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
   }
 }
 
-async function generateReportForAccount(
+async function generateReportForObjective(
   supabase: any,
   account: AdAccount,
   userId: string,
   periodDays: number,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  objective: CampaignObjective,
+  insights: MetaInsights | null
 ) {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
-  // Fetch real data from Meta API
+  const config = OBJECTIVE_CONFIG[objective];
+  const productName = account.account_name;
+
   let totalInvestment = 0;
-  let totalMessages = 0;
-  let costPerMessage = 0;
+  let actionCount = 0;
+  let costPerAction = 0;
 
-  if (account.platform === 'meta' && account.access_token) {
-    const insights = await fetchMetaInsights(
-      account.account_id,
-      account.access_token,
-      startDate,
-      endDate
-    );
-
-    if (insights) {
-      totalInvestment = insights.spend;
-      totalMessages = getMessagingActions(insights.actions);
-      
-      // If no messaging actions, estimate based on spend (fallback)
-      if (totalMessages === 0 && totalInvestment > 0) {
-        // Use a reasonable estimate - average CPM of R$30
-        totalMessages = Math.floor(totalInvestment / 30 * 1000);
-      }
-      
-      costPerMessage = totalMessages > 0 ? totalInvestment / totalMessages : 0;
+  if (insights) {
+    totalInvestment = insights.spend;
+    actionCount = getActionsForObjective(insights.actions, objective);
+    
+    // If no actions found, estimate based on spend
+    if (actionCount === 0 && totalInvestment > 0) {
+      actionCount = Math.floor(totalInvestment / config.estimateDivisor);
     }
+    
+    costPerAction = actionCount > 0 ? totalInvestment / actionCount : 0;
   } else {
-    // Fallback for non-Meta accounts or accounts without token
+    // Fallback for accounts without insights
     const dailySpend = Number(account.daily_spend) || 0;
     totalInvestment = dailySpend * periodDays;
-    totalMessages = totalInvestment > 0 ? Math.floor(totalInvestment / 30 * 1000) : 0;
-    costPerMessage = totalMessages > 0 ? totalInvestment / totalMessages : 0;
+    actionCount = totalInvestment > 0 ? Math.floor(totalInvestment / config.estimateDivisor) : 0;
+    costPerAction = actionCount > 0 ? totalInvestment / actionCount : 0;
   }
-
-  const productName = account.account_name;
 
   const reportMessage = `Bom dia,
 
@@ -217,13 +287,13 @@ Produto: ${productName}
 
 💰 Investimento total: R$ ${totalInvestment.toFixed(2).replace('.', ',')}
 
-💬 Mensagens iniciadas: ${totalMessages.toLocaleString('pt-BR')}
+${config.emoji} ${config.metricLabel}: ${actionCount.toLocaleString('pt-BR')}
 
-📈 Custo por mensagens: R$ ${costPerMessage.toFixed(2).replace('.', ',')}
+📈 Custo por ${config.metricName}: R$ ${costPerAction.toFixed(2).replace('.', ',')}
 
 Vamo pra cima!! 🚀`
 
-  const reportTitle = `📊 ${productName} - ${formatDate(startDate)} a ${formatDate(endDate)}`
+  const reportTitle = `📊 ${productName} (${config.label}) - ${formatDate(startDate)} a ${formatDate(endDate)}`
 
   const reportData = {
     user_id: userId,
@@ -233,8 +303,8 @@ Vamo pra cima!! 🚀`
     period_start: startDate.toISOString().split('T')[0],
     period_end: endDate.toISOString().split('T')[0],
     total_investment: totalInvestment,
-    messages_count: totalMessages,
-    cost_per_message: costPerMessage,
+    messages_count: actionCount,
+    cost_per_message: costPerAction,
     is_read: false,
   }
 
@@ -245,23 +315,78 @@ Vamo pra cima!! 🚀`
     .single()
 
   if (insertError) {
-    console.error(`❌ Error creating report for ${productName}:`, insertError)
+    console.error(`❌ Error creating report for ${productName} (${objective}):`, insertError)
     throw insertError
   }
 
-  console.log(`✅ Report created for: ${productName} - Investment: R$ ${totalInvestment.toFixed(2)}, Messages: ${totalMessages}`)
+  console.log(`✅ Report created for: ${productName} (${objective}) - Investment: R$ ${totalInvestment.toFixed(2)}, ${config.metricName}: ${actionCount}`)
 
-  await sendWebhookNotifications(supabase, insertedReport, userId)
+  await sendWebhookNotifications(supabase, { ...insertedReport, objective }, userId)
 
   return {
     account: productName,
+    objective,
     report: insertedReport,
     stats: {
       totalInvestment,
-      totalMessages,
-      costPerMessage,
+      actionCount,
+      costPerAction,
     }
   }
+}
+
+async function generateReportsForAccount(
+  supabase: any,
+  account: AdAccount,
+  userId: string,
+  periodDays: number,
+  startDate: Date,
+  endDate: Date
+) {
+  // Get objectives for this account (default to MESSAGES if not set)
+  const objectives = (account.report_objectives || ['MESSAGES']) as CampaignObjective[];
+  
+  console.log(`📊 Generating ${objectives.length} report(s) for ${account.account_name}: ${objectives.join(', ')}`);
+
+  // Fetch insights once for all objectives
+  let insights: MetaInsights | null = null;
+  
+  if (account.platform === 'meta' && account.access_token) {
+    insights = await fetchMetaInsights(
+      account.account_id,
+      account.access_token,
+      startDate,
+      endDate
+    );
+  }
+
+  const results = [];
+
+  // Generate a report for each selected objective
+  for (const objective of objectives) {
+    try {
+      const result = await generateReportForObjective(
+        supabase,
+        account,
+        userId,
+        periodDays,
+        startDate,
+        endDate,
+        objective,
+        insights
+      );
+      results.push(result);
+    } catch (error) {
+      console.error(`❌ Failed to generate ${objective} report for ${account.account_name}:`, error);
+      results.push({
+        account: account.account_name,
+        objective,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  return results;
 }
 
 Deno.serve(async (req) => {
@@ -309,7 +434,7 @@ Deno.serve(async (req) => {
     // Fetch all ad accounts for this user with access_token
     const { data: accounts, error: accountsError } = await supabase
       .from('ad_accounts')
-      .select('id, account_id, account_name, platform, access_token, balance, daily_spend')
+      .select('id, account_id, account_name, platform, access_token, balance, daily_spend, report_objectives')
       .eq('user_id', user.id)
 
     if (accountsError) {
@@ -335,7 +460,7 @@ Deno.serve(async (req) => {
 
     for (const account of accounts) {
       try {
-        const result = await generateReportForAccount(
+        const accountResults = await generateReportsForAccount(
           supabase,
           account,
           user.id,
@@ -343,11 +468,19 @@ Deno.serve(async (req) => {
           startDate,
           endDate
         )
-        results.push(result)
-        successCount++
-        console.log(`✅ Report ${successCount}/${accounts.length} generated for: ${account.account_name}`)
+        
+        for (const result of accountResults) {
+          results.push(result)
+          if ('error' in result) {
+            errorCount++
+          } else {
+            successCount++
+          }
+        }
+        
+        console.log(`✅ ${accountResults.length} report(s) generated for: ${account.account_name}`)
       } catch (error) {
-        console.error(`❌ Failed to generate report for ${account.account_name}:`, error)
+        console.error(`❌ Failed to generate reports for ${account.account_name}:`, error)
         errorCount++
         results.push({
           account: account.account_name,
@@ -360,6 +493,7 @@ Deno.serve(async (req) => {
       success: true,
       summary: {
         totalAccounts: accounts.length,
+        totalReports: successCount + errorCount,
         successCount,
         errorCount,
         periodStart: formatDate(startDate),

@@ -3,6 +3,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Meta campaign objective types
+export type MetaCampaignObjective = 
+  | 'MESSAGES' 
+  | 'LEADS' 
+  | 'CONVERSIONS' 
+  | 'TRAFFIC' 
+  | 'ENGAGEMENT';
+
+export const CAMPAIGN_OBJECTIVES: { value: MetaCampaignObjective; label: string; metric: string; icon: string }[] = [
+  { value: 'MESSAGES', label: 'Mensagens', metric: 'Custo por Mensagem', icon: '💬' },
+  { value: 'LEADS', label: 'Leads', metric: 'Custo por Lead', icon: '📋' },
+  { value: 'CONVERSIONS', label: 'Conversões', metric: 'Custo por Conversão', icon: '🎯' },
+  { value: 'TRAFFIC', label: 'Tráfego', metric: 'Custo por Clique', icon: '🔗' },
+  { value: 'ENGAGEMENT', label: 'Engajamento', metric: 'Custo por Engajamento', icon: '👍' },
+];
+
 export interface AdAccount {
   id: string;
   user_id: string;
@@ -21,6 +37,7 @@ export interface AdAccount {
   created_at: string;
   updated_at: string;
   last_sync_at: string | null;
+  report_objectives: MetaCampaignObjective[] | null;
 }
 
 export function useAdAccounts() {
