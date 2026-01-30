@@ -123,6 +123,7 @@ export type Database = {
       }
       notification_settings: {
         Row: {
+          balance_alert_days: string[] | null
           balance_alerts_enabled: boolean | null
           created_at: string
           default_min_balance: number | null
@@ -138,6 +139,7 @@ export type Database = {
           whatsapp_group_id: string | null
         }
         Insert: {
+          balance_alert_days?: string[] | null
           balance_alerts_enabled?: boolean | null
           created_at?: string
           default_min_balance?: number | null
@@ -153,6 +155,7 @@ export type Database = {
           whatsapp_group_id?: string | null
         }
         Update: {
+          balance_alert_days?: string[] | null
           balance_alerts_enabled?: boolean | null
           created_at?: string
           default_min_balance?: number | null

@@ -3,12 +3,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Bell, Calendar, FileText, Loader2, Mail, Save, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+
+const WEEKDAYS = [
+  { value: "monday", label: "Segunda" },
+  { value: "tuesday", label: "Terça" },
+  { value: "wednesday", label: "Quarta" },
+  { value: "thursday", label: "Quinta" },
+  { value: "friday", label: "Sexta" },
+  { value: "saturday", label: "Sábado" },
+  { value: "sunday", label: "Domingo" },
+] as const;
 
 const Settings = () => {
   const { user } = useAuth();
@@ -25,6 +36,7 @@ const Settings = () => {
   const [reportDay, setReportDay] = useState("monday");
   const [reportTime, setReportTime] = useState("09:00");
   const [defaultMinBalance, setDefaultMinBalance] = useState("500");
+  const [balanceAlertDays, setBalanceAlertDays] = useState<string[]>(WEEKDAYS.map(d => d.value));
 
   // Fetch profile data
   const { data: profile, isLoading: loadingProfile } = useQuery({
@@ -80,6 +92,13 @@ const Settings = () => {
       setReportDay(notificationSettings.report_day || "monday");
       setReportTime(notificationSettings.report_time || "09:00");
       setDefaultMinBalance(String(notificationSettings.default_min_balance || 500));
+      // Handle balance_alert_days - ensure it's an array
+      const days = (notificationSettings as any).balance_alert_days;
+      if (Array.isArray(days) && days.length > 0) {
+        setBalanceAlertDays(days);
+      } else {
+        setBalanceAlertDays(WEEKDAYS.map(d => d.value));
+      }
     }
   }, [notificationSettings]);
 
@@ -112,8 +131,9 @@ const Settings = () => {
           report_day: reportDay,
           report_time: reportTime,
           default_min_balance: parseFloat(defaultMinBalance) || 500,
+          balance_alert_days: balanceAlertDays,
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
+        } as any, { onConflict: 'user_id' });
 
       if (settingsError) throw settingsError;
     },
@@ -273,6 +293,69 @@ const Settings = () => {
                 onCheckedChange={setBalanceAlertEnabled}
               />
             </div>
+
+            {/* Balance Alert Days Selection */}
+            {balanceAlertEnabled && (
+              <div className="space-y-3 p-4 rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <Label>Dias de Verificação de Saldo</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (balanceAlertDays.length === WEEKDAYS.length) {
+                        // If all selected, select only weekdays
+                        setBalanceAlertDays(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+                      } else {
+                        // Select all days
+                        setBalanceAlertDays(WEEKDAYS.map(d => d.value));
+                      }
+                    }}
+                    className="text-xs h-7"
+                  >
+                    {balanceAlertDays.length === WEEKDAYS.length ? 'Apenas dias úteis' : 'Selecionar todos'}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map((day) => {
+                    const isSelected = balanceAlertDays.includes(day.value);
+                    return (
+                      <label
+                        key={day.value}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                          isSelected
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border hover:border-muted-foreground/50 text-muted-foreground"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setBalanceAlertDays([...balanceAlertDays, day.value]);
+                            } else {
+                              // Don't allow removing the last day
+                              if (balanceAlertDays.length === 1) {
+                                toast.error("Selecione pelo menos um dia");
+                                return;
+                              }
+                              setBalanceAlertDays(balanceAlertDays.filter(d => d !== day.value));
+                            }
+                          }}
+                          className="pointer-events-none"
+                        />
+                        <span className="text-sm font-medium">{day.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Os alertas serão verificados apenas nos dias selecionados
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
               <div className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-accent" />
