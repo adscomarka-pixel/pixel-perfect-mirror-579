@@ -124,6 +124,7 @@ export type Database = {
       notification_settings: {
         Row: {
           balance_alert_days: string[] | null
+          balance_alert_time: string | null
           balance_alerts_enabled: boolean | null
           created_at: string
           default_min_balance: number | null
@@ -140,6 +141,7 @@ export type Database = {
         }
         Insert: {
           balance_alert_days?: string[] | null
+          balance_alert_time?: string | null
           balance_alerts_enabled?: boolean | null
           created_at?: string
           default_min_balance?: number | null
@@ -156,6 +158,7 @@ export type Database = {
         }
         Update: {
           balance_alert_days?: string[] | null
+          balance_alert_time?: string | null
           balance_alerts_enabled?: boolean | null
           created_at?: string
           default_min_balance?: number | null
