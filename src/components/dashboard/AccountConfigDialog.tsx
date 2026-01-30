@@ -107,8 +107,8 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
               account.platform === "meta" ? "bg-[#1877F2]/10" : "bg-[#4285F4]/10"
@@ -133,7 +133,7 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 py-4 overflow-y-auto flex-1 pr-2">
           {/* Account Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-muted/50 rounded-lg p-3 text-center">
@@ -282,7 +282,7 @@ export function AccountConfigDialog({ account, open, onOpenChange }: AccountConf
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
