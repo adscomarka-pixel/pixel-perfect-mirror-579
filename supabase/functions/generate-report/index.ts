@@ -16,6 +16,7 @@ interface AdAccount {
   account_name: string;
   platform: string;
   access_token: string;
+  refresh_token: string | null;
   balance: number;
   daily_spend: number;
   report_objectives: string[] | null;
@@ -28,6 +29,13 @@ interface MetaInsights {
   actions?: Array<{ action_type: string; value: string }>;
 }
 
+interface GoogleAdsInsights {
+  spend: number;
+  clicks: number;
+  conversions: number;
+  impressions: number;
+}
+
 type CampaignObjective = 'MESSAGES' | 'LEADS' | 'CONVERSIONS' | 'TRAFFIC' | 'ENGAGEMENT';
 
 // Configuration for each objective type
@@ -38,6 +46,7 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
   metricLabel: string;
   emoji: string;
   estimateDivisor: number; // For fallback estimation
+  googleMetric: 'conversions' | 'clicks'; // Which Google metric to use
 }> = {
   MESSAGES: {
     label: 'Mensagens',
@@ -51,6 +60,7 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricLabel: 'Mensagens iniciadas',
     emoji: '💬',
     estimateDivisor: 30, // Avg R$30 per message
+    googleMetric: 'conversions',
   },
   LEADS: {
     label: 'Leads',
@@ -64,6 +74,7 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricLabel: 'Leads gerados',
     emoji: '📋',
     estimateDivisor: 50, // Avg R$50 per lead
+    googleMetric: 'conversions',
   },
   CONVERSIONS: {
     label: 'Conversões',
@@ -79,6 +90,7 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricLabel: 'Conversões realizadas',
     emoji: '🎯',
     estimateDivisor: 100, // Avg R$100 per conversion
+    googleMetric: 'conversions',
   },
   TRAFFIC: {
     label: 'Tráfego',
@@ -91,6 +103,7 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricLabel: 'Cliques no link',
     emoji: '🔗',
     estimateDivisor: 2, // Avg R$2 per click
+    googleMetric: 'clicks',
   },
   ENGAGEMENT: {
     label: 'Engajamento',
@@ -107,8 +120,155 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricLabel: 'Engajamentos',
     emoji: '👍',
     estimateDivisor: 0.5, // Avg R$0.50 per engagement
+    googleMetric: 'clicks',
   },
 };
+
+// Refresh Google access token
+async function refreshGoogleAccessToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string
+): Promise<string | null> {
+  try {
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+      })
+    })
+
+    const tokenData = await tokenResponse.json()
+
+    if (tokenData.error) {
+      console.error('Google token refresh error:', tokenData)
+      return null
+    }
+
+    return tokenData.access_token
+  } catch (error) {
+    console.error('Error refreshing Google token:', error)
+    return null
+  }
+}
+
+// Fetch Google Ads insights for reporting
+async function fetchGoogleAdsInsights(
+  account: AdAccount,
+  startDate: Date,
+  endDate: Date
+): Promise<GoogleAdsInsights | null> {
+  try {
+    const developerToken = Deno.env.get('GOOGLE_DEVELOPER_TOKEN')
+    
+    if (!developerToken) {
+      console.error('❌ Missing GOOGLE_DEVELOPER_TOKEN')
+      return null
+    }
+
+    // Parse refresh token data (format: refreshToken|clientId|clientSecret|mccId)
+    const refreshTokenData = account.refresh_token || ''
+    const parts = refreshTokenData.split('|')
+    const refreshToken = parts[0]
+    const clientId = parts[1]
+    const clientSecret = parts[2]
+    const mccId = parts[3]
+
+    if (!refreshToken || !clientId || !clientSecret) {
+      console.error(`❌ Missing Google credentials for ${account.account_name}`)
+      return null
+    }
+
+    // Refresh access token
+    const accessToken = await refreshGoogleAccessToken(refreshToken, clientId, clientSecret)
+    
+    if (!accessToken) {
+      console.error(`❌ Could not refresh Google token for ${account.account_name}`)
+      return null
+    }
+
+    const formatDateForGoogle = (date: Date) => date.toISOString().split('T')[0]
+    const since = formatDateForGoogle(startDate)
+    const until = formatDateForGoogle(endDate)
+
+    console.log(`📊 Fetching Google Ads insights for ${account.account_name} from ${since} to ${until}`)
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'developer-token': developerToken,
+      'Content-Type': 'application/json',
+    }
+
+    // If there's an MCC ID and it's different from the account, use login-customer-id
+    if (mccId && mccId !== account.account_id) {
+      headers['login-customer-id'] = mccId
+    }
+
+    // Query for metrics during the period
+    const query = `
+      SELECT
+        metrics.cost_micros,
+        metrics.clicks,
+        metrics.impressions,
+        metrics.conversions
+      FROM customer
+      WHERE segments.date BETWEEN '${since}' AND '${until}'
+    `
+
+    const response = await fetch(
+      `https://googleads.googleapis.com/v19/customers/${account.account_id}/googleAds:searchStream`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query: query.trim() })
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ Google Ads API error for ${account.account_name}:`, errorText)
+      return null
+    }
+
+    const data = await response.json()
+    
+    let totalSpend = 0
+    let totalClicks = 0
+    let totalImpressions = 0
+    let totalConversions = 0
+
+    if (data && Array.isArray(data)) {
+      for (const batch of data) {
+        if (batch.results) {
+          for (const result of batch.results) {
+            if (result.metrics) {
+              totalSpend += (parseInt(result.metrics.costMicros || '0') / 1000000)
+              totalClicks += parseInt(result.metrics.clicks || '0')
+              totalImpressions += parseInt(result.metrics.impressions || '0')
+              totalConversions += parseFloat(result.metrics.conversions || '0')
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`✅ Google Ads insights for ${account.account_name}: spend=${totalSpend}, clicks=${totalClicks}, conversions=${totalConversions}`)
+
+    return {
+      spend: totalSpend,
+      clicks: totalClicks,
+      impressions: totalImpressions,
+      conversions: Math.round(totalConversions),
+    }
+  } catch (error) {
+    console.error(`❌ Error fetching Google Ads insights for ${account.account_name}:`, error)
+    return null
+  }
+}
 
 async function fetchMetaInsights(
   accountId: string,
@@ -124,7 +284,7 @@ async function fetchMetaInsights(
     const since = formatDateForMeta(startDate);
     const until = formatDateForMeta(endDate);
 
-    console.log(`📊 Fetching insights for account ${accountId} from ${since} to ${until}`);
+    console.log(`📊 Fetching Meta insights for account ${accountId} from ${since} to ${until}`);
 
     // Fetch account insights from Meta API
     const insightsUrl = `https://graph.facebook.com/v18.0/act_${accountId}/insights?fields=spend,impressions,clicks,actions&time_range={"since":"${since}","until":"${until}"}&access_token=${accessToken}`;
@@ -148,7 +308,7 @@ async function fetchMetaInsights(
     }
 
     const insights = data.data[0];
-    console.log(`✅ Got insights for ${accountId}:`, insights);
+    console.log(`✅ Got Meta insights for ${accountId}: spend=${insights.spend}`);
 
     return {
       spend: parseFloat(insights.spend || '0'),
@@ -157,7 +317,7 @@ async function fetchMetaInsights(
       actions: insights.actions || []
     };
   } catch (error) {
-    console.error(`❌ Error fetching insights for account ${accountId}:`, error);
+    console.error(`❌ Error fetching Meta insights for account ${accountId}:`, error);
     return null;
   }
 }
@@ -247,7 +407,8 @@ async function generateReportForObjective(
   startDate: Date,
   endDate: Date,
   objective: CampaignObjective,
-  insights: MetaInsights | null
+  metaInsights: MetaInsights | null,
+  googleInsights: GoogleAdsInsights | null
 ) {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -260,9 +421,27 @@ async function generateReportForObjective(
   let actionCount = 0;
   let costPerAction = 0;
 
-  if (insights) {
-    totalInvestment = insights.spend;
-    actionCount = getActionsForObjective(insights.actions, objective);
+  if (account.platform === 'google' && googleInsights) {
+    // Use Google Ads data
+    totalInvestment = googleInsights.spend;
+    
+    // Use the appropriate metric based on objective
+    if (config.googleMetric === 'conversions') {
+      actionCount = googleInsights.conversions;
+    } else {
+      actionCount = googleInsights.clicks;
+    }
+    
+    // If no actions found, estimate based on spend
+    if (actionCount === 0 && totalInvestment > 0) {
+      actionCount = Math.floor(totalInvestment / config.estimateDivisor);
+    }
+    
+    costPerAction = actionCount > 0 ? totalInvestment / actionCount : 0;
+  } else if (account.platform === 'meta' && metaInsights) {
+    // Use Meta data
+    totalInvestment = metaInsights.spend;
+    actionCount = getActionsForObjective(metaInsights.actions, objective);
     
     // If no actions found, estimate based on spend
     if (actionCount === 0 && totalInvestment > 0) {
@@ -347,15 +526,22 @@ async function generateReportsForAccount(
   // Get objectives for this account (default to MESSAGES if not set)
   const objectives = (account.report_objectives || ['MESSAGES']) as CampaignObjective[];
   
-  console.log(`📊 Generating ${objectives.length} report(s) for ${account.account_name}: ${objectives.join(', ')}`);
+  console.log(`📊 Generating ${objectives.length} report(s) for ${account.account_name} (${account.platform}): ${objectives.join(', ')}`);
 
-  // Fetch insights once for all objectives
-  let insights: MetaInsights | null = null;
+  // Fetch insights based on platform
+  let metaInsights: MetaInsights | null = null;
+  let googleInsights: GoogleAdsInsights | null = null;
   
   if (account.platform === 'meta' && account.access_token) {
-    insights = await fetchMetaInsights(
+    metaInsights = await fetchMetaInsights(
       account.account_id,
       account.access_token,
+      startDate,
+      endDate
+    );
+  } else if (account.platform === 'google' && account.refresh_token) {
+    googleInsights = await fetchGoogleAdsInsights(
+      account,
       startDate,
       endDate
     );
@@ -374,7 +560,8 @@ async function generateReportsForAccount(
         startDate,
         endDate,
         objective,
-        insights
+        metaInsights,
+        googleInsights
       );
       results.push(result);
     } catch (error) {
@@ -436,7 +623,7 @@ Deno.serve(async (req) => {
     // Fetch ad accounts - either specific or all
     let accountsQuery = supabase
       .from('ad_accounts')
-      .select('id, account_id, account_name, platform, access_token, balance, daily_spend, report_objectives')
+      .select('id, account_id, account_name, platform, access_token, refresh_token, balance, daily_spend, report_objectives')
       .eq('user_id', user.id)
     
     if (accountId) {
