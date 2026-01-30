@@ -212,84 +212,179 @@ const Guide = () => {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4 pb-6">
-                <div className="space-y-4 text-sm">
+                <div className="space-y-6 text-sm">
                   <p>
-                    Para conectar suas contas do Meta Ads (Facebook/Instagram), você precisará de um 
-                    <strong> Token de Acesso</strong> do Business Manager.
+                    Para conectar suas contas do Meta Ads (Facebook/Instagram), você precisará criar um 
+                    <strong> App no Meta Developer</strong> e gerar um <strong>Token de Acesso</strong> via Business Manager.
                   </p>
-                  
+
+                  {/* Passo 1: Criar App no Meta Developer */}
                   <div className="space-y-3">
                     <h4 className="font-semibold text-base flex items-center gap-2">
                       <Badge variant="outline">1</Badge>
+                      Criar um App no Meta for Developers
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>
+                        Acesse o{" "}
+                        <a 
+                          href="https://developers.facebook.com" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          Meta for Developers
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </li>
+                      <li>Faça login com sua conta do Facebook</li>
+                      <li>Clique em <strong>"Meus Apps"</strong> no canto superior direito</li>
+                      <li>Clique em <strong>"Criar App"</strong></li>
+                      <li>Selecione o tipo <strong>"Negócios"</strong> ou <strong>"Nenhum"</strong></li>
+                      <li>Dê um nome ao app (ex: "Monitoramento de Anúncios")</li>
+                      <li>Associe ao seu Business Manager (obrigatório para acesso às APIs de ads)</li>
+                      <li>Clique em <strong>"Criar app"</strong></li>
+                    </ol>
+                  </div>
+
+                  {/* Passo 2: Configurar o App */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">2</Badge>
+                      Configurar permissões do App
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>Na página do App, vá em <strong>"Configurações do app"</strong> → <strong>"Básico"</strong></li>
+                      <li>Preencha os campos obrigatórios (URL de Política de Privacidade, etc.)</li>
+                      <li>
+                        Vá em <strong>"Adicionar produtos"</strong> e adicione:
+                        <ul className="list-disc list-inside ml-4 mt-1 text-muted-foreground">
+                          <li><strong>Marketing API</strong> - para acessar dados de anúncios</li>
+                        </ul>
+                      </li>
+                      <li>Salve as alterações</li>
+                    </ol>
+                  </div>
+
+                  {/* Passo 3: Acessar Business Manager */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">3</Badge>
                       Acessar o Business Manager
                     </h4>
                     <ol className="list-decimal list-inside space-y-2 ml-4">
                       <li>
                         Acesse{" "}
                         <a 
-                          href="https://business.facebook.com/settings/system-users" 
+                          href="https://business.facebook.com/settings" 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="text-primary hover:underline inline-flex items-center gap-1"
                         >
-                          business.facebook.com/settings/system-users
+                          Configurações do Business Manager
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </li>
-                      <li>Selecione o Business Manager correto</li>
+                      <li>No menu lateral, vá em <strong>"Usuários"</strong> → <strong>"Usuários do sistema"</strong></li>
+                      <li>Certifique-se de selecionar o Business Manager correto no topo da página</li>
                     </ol>
                   </div>
 
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-base flex items-center gap-2">
-                      <Badge variant="outline">2</Badge>
-                      Criar ou selecionar usuário do sistema
-                    </h4>
-                    <ol className="list-decimal list-inside space-y-2 ml-4">
-                      <li>Clique em "Adicionar" para criar um novo usuário do sistema</li>
-                      <li>Dê um nome descritivo (ex: "API Alertas")</li>
-                      <li>Selecione a função "Admin" ou "Funcionário"</li>
-                      <li>Atribua as contas de anúncios que deseja monitorar</li>
-                    </ol>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold text-base flex items-center gap-2">
-                      <Badge variant="outline">3</Badge>
-                      Gerar o Token de Acesso
-                    </h4>
-                    <ol className="list-decimal list-inside space-y-2 ml-4">
-                      <li>Selecione o usuário do sistema criado</li>
-                      <li>Clique em "Gerar novo token"</li>
-                      <li>
-                        Selecione as permissões:
-                        <ul className="list-disc list-inside ml-4 mt-1 text-muted-foreground">
-                          <li><code className="text-xs bg-muted px-1 rounded">ads_read</code></li>
-                          <li><code className="text-xs bg-muted px-1 rounded">ads_management</code></li>
-                          <li><code className="text-xs bg-muted px-1 rounded">business_management</code></li>
-                        </ul>
-                      </li>
-                      <li>Copie o token gerado (ele só aparece uma vez!)</li>
-                    </ol>
-                  </div>
-
+                  {/* Passo 4: Criar usuário do sistema */}
                   <div className="space-y-3">
                     <h4 className="font-semibold text-base flex items-center gap-2">
                       <Badge variant="outline">4</Badge>
+                      Criar usuário do sistema
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>Clique em <strong>"Adicionar"</strong> para criar um novo usuário do sistema</li>
+                      <li>Dê um nome descritivo (ex: "API Monitoramento Ads")</li>
+                      <li>Selecione a função <strong>"Admin"</strong> para ter acesso completo</li>
+                      <li>Clique em <strong>"Criar usuário do sistema"</strong></li>
+                    </ol>
+                  </div>
+
+                  {/* Passo 5: Atribuir ativos */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">5</Badge>
+                      Atribuir contas de anúncios ao usuário
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>Selecione o usuário do sistema criado</li>
+                      <li>Clique em <strong>"Atribuir ativos"</strong></li>
+                      <li>Selecione <strong>"Contas de anúncios"</strong></li>
+                      <li>Marque todas as contas que deseja monitorar</li>
+                      <li>Defina o nível de permissão como <strong>"Controle total"</strong></li>
+                      <li>Clique em <strong>"Salvar alterações"</strong></li>
+                    </ol>
+                  </div>
+
+                  {/* Passo 6: Vincular o App */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">6</Badge>
+                      Vincular o App ao usuário do sistema
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>Ainda na tela do usuário do sistema, vá na aba <strong>"Apps"</strong></li>
+                      <li>Clique em <strong>"Adicionar apps"</strong></li>
+                      <li>Selecione o App que você criou no passo 1</li>
+                      <li>Clique em <strong>"Adicionar"</strong></li>
+                    </ol>
+                  </div>
+
+                  {/* Passo 7: Gerar Token */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">7</Badge>
+                      Gerar o Token de Acesso
+                    </h4>
+                    <ol className="list-decimal list-inside space-y-2 ml-4">
+                      <li>Na tela do usuário do sistema, clique em <strong>"Gerar novo token"</strong></li>
+                      <li>Selecione o App vinculado anteriormente</li>
+                      <li>
+                        Marque as permissões necessárias:
+                        <ul className="list-disc list-inside ml-4 mt-1 text-muted-foreground">
+                          <li><code className="text-xs bg-muted px-1 rounded">ads_read</code> - ler dados de anúncios</li>
+                          <li><code className="text-xs bg-muted px-1 rounded">ads_management</code> - gerenciar anúncios</li>
+                          <li><code className="text-xs bg-muted px-1 rounded">business_management</code> - acesso ao Business Manager</li>
+                          <li><code className="text-xs bg-muted px-1 rounded">read_insights</code> - ler métricas e relatórios</li>
+                        </ul>
+                      </li>
+                      <li>Clique em <strong>"Gerar token"</strong></li>
+                      <li>
+                        <strong className="text-destructive">Copie o token imediatamente!</strong> Ele só aparece uma vez.
+                      </li>
+                    </ol>
+                  </div>
+
+                  {/* Passo 8: Conectar no sistema */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-base flex items-center gap-2">
+                      <Badge variant="outline">8</Badge>
                       Conectar no sistema
                     </h4>
                     <ol className="list-decimal list-inside space-y-2 ml-4">
-                      <li>Na página de <strong>Contas</strong>, clique em "Meta Ads (Token)"</li>
-                      <li>Cole o Token de Acesso</li>
-                      <li>Clique em "Conectar"</li>
-                      <li>Todas as contas de anúncios associadas serão importadas</li>
+                      <li>Na página de <strong>Contas</strong> deste sistema, clique em <strong>"Meta Ads (Token)"</strong></li>
+                      <li>Cole o Token de Acesso que você copiou</li>
+                      <li>Clique em <strong>"Conectar"</strong></li>
+                      <li>Todas as contas de anúncios atribuídas serão importadas automaticamente</li>
                     </ol>
                   </div>
 
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mt-4">
                     <p className="text-amber-600 dark:text-amber-400 text-sm">
-                      <strong>⚠️ Importante:</strong> Tokens do Meta expiram após 60 dias. 
-                      Configure alertas de expiração para ser notificado antes!
+                      <strong>⚠️ Importante:</strong> Tokens de Usuário do Sistema expiram em aproximadamente 60 dias. 
+                      Configure os alertas de expiração de token para ser notificado antes do vencimento e reconectar a conta a tempo!
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                    <p className="text-blue-600 dark:text-blue-400 text-sm">
+                      <strong>💡 Dica:</strong> Se você tiver problemas com o token, verifique se o App está no modo 
+                      <strong> "Ativo"</strong> (não em desenvolvimento) nas configurações do Meta for Developers. 
+                      Apps em modo de desenvolvimento têm limitações de acesso.
                     </p>
                   </div>
                 </div>
