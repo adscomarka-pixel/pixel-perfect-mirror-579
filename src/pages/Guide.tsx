@@ -23,13 +23,6 @@ import {
   ExternalLink
 } from "lucide-react";
 
-// Import guide images
-import googleOAuthCredentials from "@/assets/guide/google-oauth-credentials.jpg";
-import googleOAuthPlayground from "@/assets/guide/google-oauth-playground.jpg";
-import metaBusinessManager from "@/assets/guide/meta-business-manager.jpg";
-import syncComplete from "@/assets/guide/sync-complete.jpg";
-import webhooksIntegration from "@/assets/guide/webhooks-integration.jpg";
-import userRoles from "@/assets/guide/user-roles.jpg";
 
 const Guide = () => {
   return (
@@ -96,16 +89,6 @@ const Guide = () => {
                         Ative a <strong>Google Ads API</strong> em "APIs e Serviços" → "Biblioteca"
                       </li>
                     </ol>
-                    <div className="mt-3 rounded-lg overflow-hidden border">
-                      <img 
-                        src={googleOAuthCredentials} 
-                        alt="Google Cloud Console - Criação de credenciais OAuth" 
-                        className="w-full h-auto"
-                      />
-                      <p className="text-xs text-muted-foreground p-2 bg-muted/50 text-center">
-                        Tela de criação de Client ID no Google Cloud Console
-                      </p>
-                    </div>
                   </div>
 
                   {/* Passo 2: Configurar tela de consentimento */}
@@ -185,16 +168,6 @@ const Guide = () => {
                       <li>Clique em "Exchange authorization code for tokens"</li>
                       <li>Copie o <strong>Refresh Token</strong> gerado</li>
                     </ol>
-                    <div className="mt-3 rounded-lg overflow-hidden border">
-                      <img 
-                        src={googleOAuthPlayground} 
-                        alt="OAuth 2.0 Playground - Configuração de credenciais" 
-                        className="w-full h-auto"
-                      />
-                      <p className="text-xs text-muted-foreground p-2 bg-muted/50 text-center">
-                        OAuth 2.0 Playground com opção "Use your own OAuth credentials"
-                      </p>
-                    </div>
                   </div>
 
                   {/* Passo 5: Conectar no sistema */}
@@ -298,16 +271,6 @@ const Guide = () => {
                       </li>
                       <li>Copie o token gerado (ele só aparece uma vez!)</li>
                     </ol>
-                    <div className="mt-3 rounded-lg overflow-hidden border">
-                      <img 
-                        src={metaBusinessManager} 
-                        alt="Meta Business Manager - Geração de Token" 
-                        className="w-full h-auto"
-                      />
-                      <p className="text-xs text-muted-foreground p-2 bg-muted/50 text-center">
-                        Tela de usuários do sistema no Meta Business Manager
-                      </p>
-                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -355,16 +318,6 @@ const Guide = () => {
                     uma atualização abrangente de todas as suas contas conectadas.
                   </p>
 
-                  <div className="rounded-lg overflow-hidden border">
-                    <img 
-                      src={syncComplete} 
-                      alt="Fluxo de sincronização completa" 
-                      className="w-full h-auto"
-                    />
-                    <p className="text-xs text-muted-foreground p-2 bg-muted/50 text-center">
-                      O processo de sincronização completa: descobre contas, atualiza nomes e sincroniza saldos
-                    </p>
-                  </div>
 
                   <div className="bg-muted/50 rounded-lg p-4">
                     <h4 className="font-semibold mb-3">O que a sincronização completa faz:</h4>
@@ -715,16 +668,6 @@ const Guide = () => {
                     Envie alertas e notificações para ferramentas de automação via webhooks.
                   </p>
 
-                  <div className="rounded-lg overflow-hidden border">
-                    <img 
-                      src={webhooksIntegration} 
-                      alt="Fluxo de integração via webhooks" 
-                      className="w-full h-auto"
-                    />
-                    <p className="text-xs text-muted-foreground p-2 bg-muted/50 text-center">
-                      Conecte seus alertas com n8n, Zapier, Make e outras ferramentas
-                    </p>
-                  </div>
                   
                   <div className="space-y-3">
                     <h4 className="font-semibold text-base flex items-center gap-2">
@@ -840,16 +783,6 @@ const Guide = () => {
                     O sistema possui três níveis de acesso com permissões diferentes:
                   </p>
 
-                  <div className="rounded-lg overflow-hidden border">
-                    <img 
-                      src={userRoles} 
-                      alt="Níveis de permissão: Admin, Gestor e Leitor" 
-                      className="w-full h-auto"
-                    />
-                    <p className="text-xs text-muted-foreground p-2 bg-muted/50 text-center">
-                      Os três níveis de acesso: Administrador, Gestor e Leitor
-                    </p>
-                  </div>
                   
                   <div className="grid gap-4">
                     {/* Administrador */}
