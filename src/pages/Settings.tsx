@@ -37,6 +37,7 @@ const Settings = () => {
   const [reportTime, setReportTime] = useState("09:00");
   const [defaultMinBalance, setDefaultMinBalance] = useState("500");
   const [balanceAlertDays, setBalanceAlertDays] = useState<string[]>(WEEKDAYS.map(d => d.value));
+  const [balanceAlertTime, setBalanceAlertTime] = useState("09:00");
 
   // Fetch profile data
   const { data: profile, isLoading: loadingProfile } = useQuery({
@@ -99,6 +100,11 @@ const Settings = () => {
       } else {
         setBalanceAlertDays(WEEKDAYS.map(d => d.value));
       }
+      // Handle balance_alert_time
+      const alertTime = (notificationSettings as any).balance_alert_time;
+      if (alertTime) {
+        setBalanceAlertTime(alertTime);
+      }
     }
   }, [notificationSettings]);
 
@@ -132,6 +138,7 @@ const Settings = () => {
           report_time: reportTime,
           default_min_balance: parseFloat(defaultMinBalance) || 500,
           balance_alert_days: balanceAlertDays,
+          balance_alert_time: balanceAlertTime,
           updated_at: new Date().toISOString(),
         } as any, { onConflict: 'user_id' });
 
@@ -350,8 +357,21 @@ const Settings = () => {
                     );
                   })}
                 </div>
+                
+                {/* Balance Alert Time */}
+                <div className="space-y-2 pt-3 border-t border-border/50">
+                  <Label htmlFor="balanceAlertTime">Horário de Verificação</Label>
+                  <Input 
+                    id="balanceAlertTime" 
+                    type="time" 
+                    value={balanceAlertTime}
+                    onChange={(e) => setBalanceAlertTime(e.target.value)}
+                    className="max-w-[150px]"
+                  />
+                </div>
+                
                 <p className="text-xs text-muted-foreground">
-                  Os alertas serão verificados apenas nos dias selecionados
+                  Os alertas serão verificados nos dias selecionados, no horário configurado
                 </p>
               </div>
             )}
