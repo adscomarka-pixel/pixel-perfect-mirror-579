@@ -38,7 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, Pencil, Shield, User, Eye, EyeOff } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, Shield, User, Eye, EyeOff, Mail } from "lucide-react";
 import { EditUserDialog } from "@/components/dashboard/users/EditUserDialog";
 
 type AppRole = "admin" | "gestor" | "leitor";
@@ -50,6 +50,7 @@ interface UserProfile {
   company_name: string | null;
   created_at: string;
   role?: AppRole;
+  email?: string;
 }
 
 const roleLabels: Record<AppRole, string> = {
@@ -84,10 +85,11 @@ const Users = () => {
     setIsEditOpen(true);
   };
 
-  // Fetch users with their roles
+  // Fetch users with their roles and emails
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
+      // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("*")
@@ -95,11 +97,22 @@ const Users = () => {
 
       if (profilesError) throw profilesError;
 
+      // Fetch roles
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id, role");
 
       if (rolesError) throw rolesError;
+
+      // Fetch emails from edge function
+      const { data: emailsData, error: emailsError } = await supabase.functions.invoke("list-users");
+      
+      const emailsMap = new Map<string, string>();
+      if (!emailsError && emailsData?.users) {
+        Object.entries(emailsData.users as Record<string, string>).forEach(([userId, email]) => {
+          emailsMap.set(userId, email);
+        });
+      }
 
       const rolesMap = new Map<string, AppRole>();
       roles?.forEach((r) => {
@@ -109,6 +122,7 @@ const Users = () => {
       return profiles?.map((profile) => ({
         ...profile,
         role: rolesMap.get(profile.user_id),
+        email: emailsMap.get(profile.user_id) || "",
       })) as UserProfile[];
     },
     enabled: canManageUsers,
@@ -385,6 +399,7 @@ const Users = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Função</TableHead>
                 <TableHead>Criado em</TableHead>
@@ -398,6 +413,12 @@ const Users = () => {
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
                       {userProfile.full_name || "Sem nome"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{userProfile.email || "-"}</span>
                     </div>
                   </TableCell>
                   <TableCell>{userProfile.company_name || "-"}</TableCell>
