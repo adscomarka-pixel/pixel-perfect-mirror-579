@@ -63,15 +63,14 @@ export function MetaTokenDialog({ open, onOpenChange, onSubmit, isLoading }: Met
           <Alert>
             <AlertDescription className="text-sm">
               <strong>Como obter o token:</strong>
-              <ol className="list-decimal list-inside mt-2 space-y-1">
-                <li>Acesse o <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-                  Business Manager <ExternalLink className="w-3 h-3" />
-                </a></li>
-                <li>Vá em <strong>Configurações → Usuários do Sistema</strong></li>
-                <li>Selecione ou crie um usuário do sistema</li>
-                <li>Clique em <strong>"Gerar novo token"</strong></li>
-                <li>Selecione as permissões: <code className="bg-muted px-1 rounded">ads_management</code>, <code className="bg-muted px-1 rounded">ads_read</code></li>
-                <li>Copie e cole o token abaixo</li>
+              <ol className="list-decimal list-inside mt-2 space-y-2">
+                <li>Acesse o <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                  Portal de Desenvolvedores <ExternalLink className="w-3 h-3" />
+                </a> e selecione seu app</li>
+                <li>No menu lateral, vá em <strong>Casos de uso → Marketing API → Personalizar</strong></li>
+                <li>Clique na aba <strong>Ferramentas</strong></li>
+                <li>Marque os escopos: <code className="bg-muted px-1 rounded text-xs">ads_read</code>, <code className="bg-muted px-1 rounded text-xs">ads_management</code>, <code className="bg-muted px-1 rounded text-xs">business_management</code>, <code className="bg-muted px-1 rounded text-xs">read_insights</code></li>
+                <li>Clique em <strong>"Gerar token"</strong> e copie</li>
               </ol>
             </AlertDescription>
           </Alert>
