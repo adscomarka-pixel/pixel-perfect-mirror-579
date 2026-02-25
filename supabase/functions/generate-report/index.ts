@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface ReportData {
   periodDays?: number;
-  accountId?: string; // Optional: generate report for a specific account only
+  accountId?: string;
 }
 
 interface AdAccount {
@@ -17,8 +17,8 @@ interface AdAccount {
   platform: string;
   access_token: string;
   refresh_token: string | null;
-  balance: number;
-  daily_spend: number;
+  balance: string | number;
+  daily_spend: string | number;
   report_objectives: string[] | null;
 }
 
@@ -27,6 +27,7 @@ interface MetaInsights {
   impressions: number;
   clicks: number;
   actions?: Array<{ action_type: string; value: string }>;
+  raw?: any;
 }
 
 interface GoogleAdsInsights {
@@ -38,28 +39,25 @@ interface GoogleAdsInsights {
 
 type CampaignObjective = 'MESSAGES' | 'LEADS' | 'CONVERSIONS' | 'TRAFFIC' | 'ENGAGEMENT';
 
-// Configuration for each objective type
+// LISTAS DE PRIORIDADE (Ordenadas do evento mais valioso para o genérico)
 const OBJECTIVE_CONFIG: Record<CampaignObjective, {
   label: string;
   actionTypes: string[];
   metricName: string;
   metricLabel: string;
   emoji: string;
-  estimateDivisor: number; // For fallback estimation
-  googleMetric: 'conversions' | 'clicks'; // Which Google metric to use
+  estimateDivisor: number; 
+  googleMetric: 'conversions' | 'clicks'; 
 }> = {
   MESSAGES: {
     label: 'Mensagens',
     actionTypes: [
       'onsite_conversion.messaging_conversation_started_7d',
-      'onsite_conversion.messaging_first_reply',
-      'onsite_conversion.messaging_block',
-      'contact',
     ],
     metricName: 'mensagens',
     metricLabel: 'Mensagens iniciadas',
     emoji: '💬',
-    estimateDivisor: 30, // Avg R$30 per message
+    estimateDivisor: 30, 
     googleMetric: 'conversions',
   },
   LEADS: {
@@ -73,23 +71,23 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricName: 'leads',
     metricLabel: 'Leads gerados',
     emoji: '📋',
-    estimateDivisor: 50, // Avg R$50 per lead
+    estimateDivisor: 50, 
     googleMetric: 'conversions',
   },
   CONVERSIONS: {
     label: 'Conversões',
     actionTypes: [
       'purchase',
-      'omni_purchase',
-      'onsite_conversion.purchase',
       'offsite_conversion.fb_pixel_purchase',
+      'onsite_conversion.purchase',
+      'omni_purchase',
       'add_to_cart',
       'initiate_checkout',
     ],
     metricName: 'conversões',
     metricLabel: 'Conversões realizadas',
     emoji: '🎯',
-    estimateDivisor: 100, // Avg R$100 per conversion
+    estimateDivisor: 100, 
     googleMetric: 'conversions',
   },
   TRAFFIC: {
@@ -102,7 +100,7 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     metricName: 'cliques',
     metricLabel: 'Cliques no link',
     emoji: '🔗',
-    estimateDivisor: 2, // Avg R$2 per click
+    estimateDivisor: 2, 
     googleMetric: 'clicks',
   },
   ENGAGEMENT: {
@@ -110,21 +108,32 @@ const OBJECTIVE_CONFIG: Record<CampaignObjective, {
     actionTypes: [
       'post_engagement',
       'page_engagement',
+      'post_reaction',
       'like',
       'comment',
       'share',
       'video_view',
-      'photo_view',
     ],
     metricName: 'engajamentos',
     metricLabel: 'Engajamentos',
     emoji: '👍',
-    estimateDivisor: 0.5, // Avg R$0.50 per engagement
+    estimateDivisor: 0.5, 
     googleMetric: 'clicks',
   },
 };
 
-// Refresh Google access token
+// Converte valores formatados do banco ("150,00") para número
+function parseToNumber(value: any): number {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  const str = String(value);
+  if (str.includes(',')) {
+    const cleanStr = str.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleanStr) || 0;
+  }
+  return parseFloat(str) || 0;
+}
+
 async function refreshGoogleAccessToken(
   refreshToken: string,
   clientId: string,
@@ -141,22 +150,14 @@ async function refreshGoogleAccessToken(
         grant_type: 'refresh_token'
       })
     })
-
     const tokenData = await tokenResponse.json()
-
-    if (tokenData.error) {
-      console.error('Google token refresh error:', tokenData)
-      return null
-    }
-
+    if (tokenData.error) return null
     return tokenData.access_token
   } catch (error) {
-    console.error('Error refreshing Google token:', error)
     return null
   }
 }
 
-// Fetch Google Ads insights for reporting
 async function fetchGoogleAdsInsights(
   account: AdAccount,
   startDate: Date,
@@ -164,13 +165,8 @@ async function fetchGoogleAdsInsights(
 ): Promise<GoogleAdsInsights | null> {
   try {
     const developerToken = Deno.env.get('GOOGLE_DEVELOPER_TOKEN')
-    
-    if (!developerToken) {
-      console.error('❌ Missing GOOGLE_DEVELOPER_TOKEN')
-      return null
-    }
+    if (!developerToken) return null
 
-    // Parse refresh token data (format: refreshToken|clientId|clientSecret|mccId)
     const refreshTokenData = account.refresh_token || ''
     const parts = refreshTokenData.split('|')
     const refreshToken = parts[0]
@@ -178,24 +174,14 @@ async function fetchGoogleAdsInsights(
     const clientSecret = parts[2]
     const mccId = parts[3]
 
-    if (!refreshToken || !clientId || !clientSecret) {
-      console.error(`❌ Missing Google credentials for ${account.account_name}`)
-      return null
-    }
+    if (!refreshToken || !clientId || !clientSecret) return null
 
-    // Refresh access token
     const accessToken = await refreshGoogleAccessToken(refreshToken, clientId, clientSecret)
-    
-    if (!accessToken) {
-      console.error(`❌ Could not refresh Google token for ${account.account_name}`)
-      return null
-    }
+    if (!accessToken) return null
 
     const formatDateForGoogle = (date: Date) => date.toISOString().split('T')[0]
     const since = formatDateForGoogle(startDate)
     const until = formatDateForGoogle(endDate)
-
-    console.log(`📊 Fetching Google Ads insights for ${account.account_name} from ${since} to ${until}`)
 
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${accessToken}`,
@@ -203,12 +189,10 @@ async function fetchGoogleAdsInsights(
       'Content-Type': 'application/json',
     }
 
-    // If there's an MCC ID and it's different from the account, use login-customer-id
     if (mccId && mccId !== account.account_id) {
       headers['login-customer-id'] = mccId
     }
 
-    // Query for metrics during the period
     const query = `
       SELECT
         metrics.cost_micros,
@@ -228,14 +212,10 @@ async function fetchGoogleAdsInsights(
       }
     )
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`❌ Google Ads API error for ${account.account_name}:`, errorText)
-      return null
-    }
+    if (!response.ok) return null
 
     const data = await response.json()
-    
+
     let totalSpend = 0
     let totalClicks = 0
     let totalImpressions = 0
@@ -256,8 +236,6 @@ async function fetchGoogleAdsInsights(
       }
     }
 
-    console.log(`✅ Google Ads insights for ${account.account_name}: spend=${totalSpend}, clicks=${totalClicks}, conversions=${totalConversions}`)
-
     return {
       spend: totalSpend,
       clicks: totalClicks,
@@ -265,7 +243,6 @@ async function fetchGoogleAdsInsights(
       conversions: Math.round(totalConversions),
     }
   } catch (error) {
-    console.error(`❌ Error fetching Google Ads insights for ${account.account_name}:`, error)
     return null
   }
 }
@@ -278,7 +255,15 @@ async function fetchMetaInsights(
 ): Promise<MetaInsights | null> {
   try {
     const formatDateForMeta = (date: Date) => {
-      return date.toISOString().split('T')[0];
+      const d = new Date(date);
+      let month = '' + (d.getMonth() + 1);
+      let day = '' + d.getDate();
+      const year = d.getFullYear();
+
+      if (month.length < 2) month = '0' + month;
+      if (day.length < 2) day = '0' + day;
+
+      return [year, month, day].join('-');
     };
 
     const since = formatDateForMeta(startDate);
@@ -286,39 +271,38 @@ async function fetchMetaInsights(
 
     console.log(`📊 Fetching Meta insights for account ${accountId} from ${since} to ${until}`);
 
-    // Fetch account insights from Meta API
-    const insightsUrl = `https://graph.facebook.com/v18.0/act_${accountId}/insights?fields=spend,impressions,clicks,actions&time_range={"since":"${since}","until":"${until}"}&access_token=${accessToken}`;
-    
+    const params = new URLSearchParams({
+      fields: 'spend,impressions,clicks,actions',
+      time_range: JSON.stringify({ since, until }),
+      access_token: accessToken
+    });
+
+    const insightsUrl = `https://graph.facebook.com/v21.0/act_${accountId}/insights?${params.toString()}`;
+
     const response = await fetch(insightsUrl);
     const data = await response.json();
 
     if (data.error) {
       console.error(`❌ Meta API error for account ${accountId}:`, data.error);
-      return null;
+      return { spend: 0, impressions: 0, clicks: 0, actions: [], raw: data };
     }
 
     if (!data.data || data.data.length === 0) {
       console.log(`📊 No insights data for account ${accountId} in this period`);
-      return {
-        spend: 0,
-        impressions: 0,
-        clicks: 0,
-        actions: []
-      };
+      return { spend: 0, impressions: 0, clicks: 0, actions: [], raw: data };
     }
 
     const insights = data.data[0];
-    console.log(`✅ Got Meta insights for ${accountId}: spend=${insights.spend}`);
-
     return {
       spend: parseFloat(insights.spend || '0'),
       impressions: parseInt(insights.impressions || '0'),
       clicks: parseInt(insights.clicks || '0'),
-      actions: insights.actions || []
+      actions: insights.actions || [],
+      raw: data
     };
   } catch (error) {
     console.error(`❌ Error fetching Meta insights for account ${accountId}:`, error);
-    return null;
+    return { spend: 0, impressions: 0, clicks: 0, actions: [], raw: String(error) };
   }
 }
 
@@ -329,15 +313,19 @@ function getActionsForObjective(
   if (!actions || actions.length === 0) return 0;
 
   const config = OBJECTIVE_CONFIG[objective];
-  let total = 0;
 
-  for (const action of actions) {
-    if (config.actionTypes.includes(action.action_type)) {
-      total += parseInt(action.value || '0');
+  // A MÁGICA ACONTECE AQUI:
+  // Em vez de somar tudo e duplicar os resultados, a função procura 
+  // do mais importante pro menos importante. Achou? Retorna e ignora o resto.
+  for (const targetType of config.actionTypes) {
+    const foundAction = actions.find(a => a.action_type === targetType);
+    
+    if (foundAction) {
+      return parseInt(foundAction.value || '0');
     }
   }
 
-  return total;
+  return 0; // Se não encontrou nenhuma ação relevante
 }
 
 async function sendWebhookNotifications(supabase: any, report: any, userId: string) {
@@ -348,15 +336,7 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
       .eq('user_id', userId)
       .eq('is_active', true)
 
-    if (error) {
-      console.error('Error fetching webhooks:', error)
-      return
-    }
-
-    if (!webhooks || webhooks.length === 0) {
-      console.log('No active webhooks configured')
-      return
-    }
+    if (error || !webhooks || webhooks.length === 0) return
 
     for (const webhook of webhooks) {
       try {
@@ -377,19 +357,11 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
           },
         }
 
-        const response = await fetch(webhook.webhook_url, {
+        await fetch(webhook.webhook_url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-
-        if (response.ok) {
-          console.log(`✅ Report webhook sent successfully to: ${webhook.name}`)
-        } else {
-          console.error(`❌ Webhook failed for ${webhook.name}: ${response.status}`)
-        }
       } catch (webhookError) {
         console.error(`❌ Error sending webhook to ${webhook.name}:`, webhookError)
       }
@@ -422,36 +394,28 @@ async function generateReportForObjective(
   let costPerAction = 0;
 
   if (account.platform === 'google' && googleInsights) {
-    // Use Google Ads data
     totalInvestment = googleInsights.spend;
-    
-    // Use the appropriate metric based on objective
     if (config.googleMetric === 'conversions') {
       actionCount = googleInsights.conversions;
     } else {
       actionCount = googleInsights.clicks;
     }
-    
-    // If no actions found, estimate based on spend
     if (actionCount === 0 && totalInvestment > 0) {
       actionCount = Math.floor(totalInvestment / config.estimateDivisor);
     }
-    
     costPerAction = actionCount > 0 ? totalInvestment / actionCount : 0;
   } else if (account.platform === 'meta' && metaInsights) {
-    // Use Meta data
     totalInvestment = metaInsights.spend;
-    actionCount = getActionsForObjective(metaInsights.actions, objective);
     
-    // If no actions found, estimate based on spend
+    // Passamos direto para a nova função que prioriza os eventos!
+    actionCount = getActionsForObjective(metaInsights.actions, objective);
+
     if (actionCount === 0 && totalInvestment > 0) {
       actionCount = Math.floor(totalInvestment / config.estimateDivisor);
     }
-    
     costPerAction = actionCount > 0 ? totalInvestment / actionCount : 0;
   } else {
-    // Fallback for accounts without insights
-    const dailySpend = Number(account.daily_spend) || 0;
+    const dailySpend = parseToNumber(account.daily_spend);
     totalInvestment = dailySpend * periodDays;
     actionCount = totalInvestment > 0 ? Math.floor(totalInvestment / config.estimateDivisor) : 0;
     costPerAction = actionCount > 0 ? totalInvestment / actionCount : 0;
@@ -499,8 +463,6 @@ Vamo pra cima!! 🚀`
     throw insertError
   }
 
-  console.log(`✅ Report created for: ${productName} (${objective}) - Investment: R$ ${totalInvestment.toFixed(2)}, ${config.metricName}: ${actionCount}`)
-
   await sendWebhookNotifications(supabase, { ...insertedReport, objective }, userId)
 
   return {
@@ -523,15 +485,10 @@ async function generateReportsForAccount(
   startDate: Date,
   endDate: Date
 ) {
-  // Get objectives for this account (default to MESSAGES if not set)
   const objectives = (account.report_objectives || ['MESSAGES']) as CampaignObjective[];
-  
-  console.log(`📊 Generating ${objectives.length} report(s) for ${account.account_name} (${account.platform}): ${objectives.join(', ')}`);
-
-  // Fetch insights based on platform
   let metaInsights: MetaInsights | null = null;
   let googleInsights: GoogleAdsInsights | null = null;
-  
+
   if (account.platform === 'meta' && account.access_token) {
     metaInsights = await fetchMetaInsights(
       account.account_id,
@@ -549,7 +506,6 @@ async function generateReportsForAccount(
 
   const results = [];
 
-  // Generate a report for each selected objective
   for (const objective of objectives) {
     try {
       const result = await generateReportForObjective(
@@ -565,7 +521,6 @@ async function generateReportsForAccount(
       );
       results.push(result);
     } catch (error) {
-      console.error(`❌ Failed to generate ${objective} report for ${account.account_name}:`, error);
       results.push({
         account: account.account_name,
         objective,
@@ -583,34 +538,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📊 Starting report generation...')
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing authorization header')
-    }
+    if (!authHeader) throw new Error('Missing authorization header')
 
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-    
-    if (userError || !user) {
-      throw new Error('Invalid user token')
-    }
+
+    if (userError || !user) throw new Error('Invalid user token')
 
     let requestData: ReportData = {}
     try {
       requestData = await req.json()
-    } catch {
-      // Use defaults if no body
-    }
+    } catch {}
 
     const periodDays = requestData.periodDays || 7
-    const accountId = requestData.accountId // Optional: specific account ID
+    const accountId = requestData.accountId 
 
     const endDate = new Date()
     const startDate = new Date()
@@ -620,30 +567,23 @@ Deno.serve(async (req) => {
       return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     }
 
-    // Fetch ad accounts - either specific or all
     let accountsQuery = supabase
       .from('ad_accounts')
       .select('id, account_id, account_name, platform, access_token, refresh_token, balance, daily_spend, report_objectives')
       .eq('user_id', user.id)
-    
+
     if (accountId) {
       accountsQuery = accountsQuery.eq('id', accountId)
-      console.log(`📊 Generating report for specific account: ${accountId}`)
     }
 
     const { data: accounts, error: accountsError } = await accountsQuery
 
-    if (accountsError) {
-      console.error('❌ Error fetching accounts:', accountsError)
-      throw accountsError
-    }
-
-    console.log(`📊 Found ${accounts?.length || 0} account(s) for user`)
+    if (accountsError) throw accountsError
 
     if (!accounts || accounts.length === 0) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: accountId ? 'Conta de anúncios não encontrada' : 'Nenhuma conta de anúncios encontrada' 
+      return new Response(JSON.stringify({
+        success: false,
+        error: accountId ? 'Conta de anúncios não encontrada' : 'Nenhuma conta de anúncios encontrada'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400
@@ -664,7 +604,7 @@ Deno.serve(async (req) => {
           startDate,
           endDate
         )
-        
+
         for (const result of accountResults) {
           results.push(result)
           if ('error' in result) {
@@ -673,15 +613,8 @@ Deno.serve(async (req) => {
             successCount++
           }
         }
-        
-        console.log(`✅ ${accountResults.length} report(s) generated for: ${account.account_name}`)
       } catch (error) {
-        console.error(`❌ Failed to generate reports for ${account.account_name}:`, error)
         errorCount++
-        results.push({
-          account: account.account_name,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
       }
     }
 
@@ -698,15 +631,12 @@ Deno.serve(async (req) => {
       results
     }
 
-    console.log('✅ Report generation completed:', response.summary)
-
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     })
 
   } catch (error) {
-    console.error('❌ Error in generate-report:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
