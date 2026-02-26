@@ -10,6 +10,7 @@ import {
     ExternalLink,
     Loader2,
     UserPlus,
+    User,
     Smartphone,
     AlertCircle,
     Link2,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { useClients, type Client } from "@/hooks/useClients";
 import { useAdAccounts, type AdAccount } from "@/hooks/useAdAccounts";
+import { useAccountManagers } from "@/hooks/useAccountManagers";
 import { AccountConfigDialog } from "@/components/dashboard/AccountConfigDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,10 +62,11 @@ import { toast } from "sonner";
 const Clients = () => {
     const { clients, isLoading, createClient, updateClient, deleteClient, linkAccount, unlinkAccount } = useClients();
     const { accounts, isLoading: isLoadingAccounts } = useAdAccounts();
+    const { managers } = useAccountManagers();
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-    const [newClient, setNewClient] = useState({ name: "", whatsapp_group_link: "", enable_balance_check: true });
+    const [newClient, setNewClient] = useState({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "" });
 
     // Link account state
     const [linkPlatform, setLinkPlatform] = useState<"meta" | "google">("meta");
@@ -82,13 +85,18 @@ const Clients = () => {
             toast.error("O nome do cliente é obrigatório");
             return;
         }
-        createClient.mutate(newClient, {
+        const clientData = {
+            ...newClient,
+            manager_id: newClient.manager_id === "none" || !newClient.manager_id ? null : newClient.manager_id
+        };
+        createClient.mutate(clientData, {
             onSuccess: () => {
                 setIsCreateDialogOpen(false);
-                setNewClient({ name: "", whatsapp_group_link: "", enable_balance_check: true });
+                setNewClient({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "" });
             }
         });
     };
+
 
     const handleLinkAccount = () => {
         if (!selectedClientId || !selectedAccountId) return;
@@ -147,6 +155,23 @@ const Clients = () => {
                                     value={newClient.whatsapp_group_link}
                                     onChange={(e) => setNewClient({ ...newClient, whatsapp_group_link: e.target.value })}
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="manager">Gestor Responsável</Label>
+                                <Select
+                                    value={newClient.manager_id}
+                                    onValueChange={(val) => setNewClient({ ...newClient, manager_id: val })}
+                                >
+                                    <SelectTrigger id="manager">
+                                        <SelectValue placeholder="Selecione um gestor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Nenhum</SelectItem>
+                                        {managers.map((m) => (
+                                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                                 <div className="space-y-0.5">
@@ -233,23 +258,61 @@ const Clients = () => {
                                         </div>
                                         <div>
                                             <CardTitle className="text-xl">{client.name}</CardTitle>
-                                            {client.whatsapp_group_link ? (
-                                                <a
-                                                    href={client.whatsapp_group_link}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs text-primary flex items-center gap-1 hover:underline mt-1"
-                                                >
-                                                    <Smartphone className="w-3 h-3" />
-                                                    Grupo WhatsApp
-                                                </a>
-                                            ) : (
-                                                <CardDescription>Sem link de WhatsApp</CardDescription>
-                                            )}
+                                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                                                {client.whatsapp_group_link ? (
+                                                    <a
+                                                        href={client.whatsapp_group_link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs text-primary flex items-center gap-1 hover:underline"
+                                                    >
+                                                        <Smartphone className="w-3 h-3" />
+                                                        WhatsApp
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                        <Smartphone className="w-3 h-3" />
+                                                        Sem WhatsApp
+                                                    </span>
+                                                )}
+
+                                                {client.manager_id ? (
+                                                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        {managers.find(m => m.id === client.manager_id)?.name || "Gestor não encontrado"}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        Sem Gestor
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-6 space-y-4">
+                                    {/* Manager Change Selection */}
+                                    <div className="flex items-center justify-between pb-4 border-b">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-xs text-muted-foreground">Gestor Responsável</Label>
+                                            <Select
+                                                value={client.manager_id || "none"}
+                                                onValueChange={(val) => updateClient.mutate({ id: client.id, manager_id: val === "none" ? null : val })}
+                                            >
+                                                <SelectTrigger className="h-8 w-[180px] text-xs">
+                                                    <SelectValue placeholder="Selecionar gestor" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">Nenhum</SelectItem>
+                                                    {managers.map((m) => (
+                                                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
                                     <div className="flex items-center justify-between pb-2 border-b">
                                         <h4 className="text-sm font-semibold flex items-center gap-2">
                                             <Link2 className="w-4 h-4" />

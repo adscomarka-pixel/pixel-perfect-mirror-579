@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Bell, Calendar, FileText, Loader2, Mail, Save, User } from "lucide-react";
+import { Bell, Calendar, FileText, Loader2, Mail, Save, User, Users, Plus, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,7 +24,56 @@ const WEEKDAYS = [
 const Settings = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+
+  // Account Managers
+  const { data: managers = [], isLoading: loadingManagers } = useQuery({
+    queryKey: ['account_managers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('account_managers')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [newManagerName, setNewManagerName] = useState("");
+  const [newManagerNotion, setNewManagerNotion] = useState("");
+  const [isAddingManager, setIsAddingManager] = useState(false);
+
+  const addManagerMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      const { error } = await supabase.from('account_managers').insert([{
+        user_id: user.id,
+        name: newManagerName,
+        notion_id: newManagerNotion,
+      }]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account_managers'] });
+      setNewManagerName("");
+      setNewManagerNotion("");
+      setIsAddingManager(false);
+      toast.success("Gestor adicionado com sucesso!");
+    },
+    onError: (error) => toast.error("Erro ao adicionar gestor: " + error.message),
+  });
+
+  const deleteManagerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('account_managers').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account_managers'] });
+      toast.success("Gestor removido!");
+    },
+    onError: (error) => toast.error("Erro ao remover: " + error.message),
+  });
+
   // Form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -49,7 +98,7 @@ const Settings = () => {
         .select('*')
         .eq('user_id', user.id)
         .single();
-      
+
       if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
@@ -66,7 +115,7 @@ const Settings = () => {
         .select('*')
         .eq('user_id', user.id)
         .single();
-      
+
       if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
@@ -183,8 +232,8 @@ const Settings = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nome</Label>
-              <Input 
-                id="name" 
+              <Input
+                id="name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Seu nome completo"
@@ -192,9 +241,9 @@ const Settings = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
+              <Input
+                id="email"
+                type="email"
                 value={email}
                 disabled
                 className="bg-muted"
@@ -202,8 +251,8 @@ const Settings = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="company">Empresa</Label>
-              <Input 
-                id="company" 
+              <Input
+                id="company"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Nome da empresa"
@@ -211,8 +260,8 @@ const Settings = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone</Label>
-              <Input 
-                id="phone" 
+              <Input
+                id="phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+55 11 99999-9999"
@@ -220,6 +269,94 @@ const Settings = () => {
             </div>
           </div>
         </div>
+
+        {/* Account Managers Settings */}
+        <div className="bg-card rounded-xl border border-border shadow-card p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                <Users className="w-5 h-5 text-indigo-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Gestores de Conta</h3>
+                <p className="text-sm text-muted-foreground">Gerencie a lista de gestores para seus clientes</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddingManager(!isAddingManager)}
+            >
+              {isAddingManager ? "Cancelar" : (
+                <>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Novo Gestor
+                </>
+              )}
+            </Button>
+          </div>
+
+          {isAddingManager && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 rounded-lg bg-muted/30 border border-dashed">
+              <div className="space-y-2">
+                <Label htmlFor="manager-name">Nome do Gestor</Label>
+                <Input
+                  id="manager-name"
+                  value={newManagerName}
+                  onChange={(e) => setNewManagerName(e.target.value)}
+                  placeholder="Ex: João Silva"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manager-notion">ID do Notion (Opcional)</Label>
+                <Input
+                  id="manager-notion"
+                  value={newManagerNotion}
+                  onChange={(e) => setNewManagerNotion(e.target.value)}
+                  placeholder="ID do banco/página"
+                />
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={() => addManagerMutation.mutate()}
+                  disabled={!newManagerName || addManagerMutation.isPending}
+                >
+                  {addManagerMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Salvar Gestor
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {managers.length === 0 ? (
+              <p className="text-center py-4 text-sm text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
+                Nenhum gestor cadastrado.
+              </p>
+            ) : (
+              managers.map((manager: any) => (
+                <div key={manager.id} className="flex items-center justify-between p-3 rounded-lg border bg-card/50">
+                  <div>
+                    <p className="font-medium text-sm">{manager.name}</p>
+                    {manager.notion_id && (
+                      <p className="text-[10px] text-muted-foreground">Notion: {manager.notion_id}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => deleteManagerMutation.mutate(manager.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
 
         {/* Report Settings */}
         <div className="bg-card rounded-xl border border-border shadow-card p-6">
@@ -264,9 +401,9 @@ const Settings = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reportTime">Horário</Label>
-                <Input 
-                  id="reportTime" 
-                  type="time" 
+                <Input
+                  id="reportTime"
+                  type="time"
                   value={reportTime}
                   onChange={(e) => setReportTime(e.target.value)}
                 />
@@ -330,11 +467,10 @@ const Settings = () => {
                     return (
                       <label
                         key={day.value}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                          isSelected
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border hover:border-muted-foreground/50 text-muted-foreground"
-                        }`}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${isSelected
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border hover:border-muted-foreground/50 text-muted-foreground"
+                          }`}
                       >
                         <Checkbox
                           checked={isSelected}
@@ -357,19 +493,19 @@ const Settings = () => {
                     );
                   })}
                 </div>
-                
+
                 {/* Balance Alert Time */}
                 <div className="space-y-2 pt-3 border-t border-border/50">
                   <Label htmlFor="balanceAlertTime">Horário de Verificação</Label>
-                  <Input 
-                    id="balanceAlertTime" 
-                    type="time" 
+                  <Input
+                    id="balanceAlertTime"
+                    type="time"
                     value={balanceAlertTime}
                     onChange={(e) => setBalanceAlertTime(e.target.value)}
                     className="max-w-[150px]"
                   />
                 </div>
-                
+
                 <p className="text-xs text-muted-foreground">
                   Os alertas serão verificados nos dias selecionados, no horário configurado
                 </p>
@@ -391,9 +527,9 @@ const Settings = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="defaultMinBalance">Limite Mínimo Padrão (R$)</Label>
-              <Input 
-                id="defaultMinBalance" 
-                type="number" 
+              <Input
+                id="defaultMinBalance"
+                type="number"
                 value={defaultMinBalance}
                 onChange={(e) => setDefaultMinBalance(e.target.value)}
               />
@@ -406,8 +542,8 @@ const Settings = () => {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button 
-            variant="hero" 
+          <Button
+            variant="hero"
             size="lg"
             onClick={handleSave}
             disabled={saveMutation.isPending || isLoading}

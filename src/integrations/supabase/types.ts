@@ -98,6 +98,7 @@ export type Database = {
           name: string
           whatsapp_group_link: string | null
           enable_balance_check: boolean
+          manager_id: string | null
           created_at: string
           updated_at: string
         }
@@ -107,6 +108,7 @@ export type Database = {
           name: string
           whatsapp_group_link?: string | null
           enable_balance_check?: boolean
+          manager_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -116,6 +118,42 @@ export type Database = {
           name?: string
           whatsapp_group_link?: string | null
           enable_balance_check?: boolean
+          manager_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "account_managers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      account_managers: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          notion_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          notion_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          notion_id?: string | null
           created_at?: string
           updated_at?: string
         }
