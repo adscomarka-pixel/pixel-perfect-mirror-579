@@ -12,6 +12,12 @@ RUN npm install --legacy-peer-deps
 # Copia o resto do código da aplicação
 COPY . .
 
+# Captura os argumentos de build do Easypanel e os transforma em variáveis de ambiente para o Vite
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+
 # Faz o build da aplicação React/Vite (gera a pasta dist)
 RUN npm run build
 
