@@ -106,7 +106,7 @@ const Users = () => {
 
       // Fetch emails from edge function
       const { data: emailsData, error: emailsError } = await supabase.functions.invoke("list-users");
-      
+
       const emailsMap = new Map<string, string>();
       if (!emailsError && emailsData?.users) {
         Object.entries(emailsData.users as Record<string, string>).forEach(([userId, email]) => {
@@ -138,18 +138,22 @@ const Users = () => {
         password: newUserPassword,
         options: {
           emailRedirectTo: window.location.origin,
+          data: {
+            full_name: newUserName,
+          }
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Falha ao criar usuário");
 
-      // Create profile
-      const { error: profileError } = await supabase.from("profiles").insert({
+      // Use upsert instead of insert because a database trigger 
+      // already creates a profile record on auth signup
+      const { error: profileError } = await supabase.from("profiles").upsert({
         user_id: authData.user.id,
         full_name: newUserName,
         company_name: newUserCompany,
-      });
+      }, { onConflict: 'user_id' });
 
       if (profileError) throw profileError;
 
@@ -206,7 +210,7 @@ const Users = () => {
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: AppRole }) => {
       // First, delete existing role
       await supabase.from("user_roles").delete().eq("user_id", userId);
-      
+
       // Then insert new role
       const { error } = await supabase
         .from("user_roles")
