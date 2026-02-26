@@ -1,13 +1,13 @@
 # Estágio de build
-FROM node:20-alpine as build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
 # Copia os arquivos de dependência
 COPY package*.json ./
 
-# Instala as dependências
-RUN npm install
+# Instala as dependências ignorando conflitos de peer dependencies
+RUN npm install --legacy-peer-deps
 
 # Copia o resto do código da aplicação
 COPY . .
