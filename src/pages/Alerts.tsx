@@ -17,7 +17,7 @@ interface AdAccountAlert {
   platform: string;
   alert_enabled: boolean;
   min_balance_alert: number;
-  balance: number;
+  balance: number | string;
 }
 
 const Alerts = () => {
@@ -31,7 +31,7 @@ const Alerts = () => {
         .from('ad_accounts')
         .select('id, account_name, platform, alert_enabled, min_balance_alert, balance')
         .order('account_name');
-      
+
       if (error) throw error;
       return data as AdAccountAlert[];
     }
@@ -91,7 +91,7 @@ const Alerts = () => {
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <Button 
+          <Button
             variant="default"
             onClick={() => checkBalanceMutation.mutate()}
             disabled={checkBalanceMutation.isPending}
@@ -103,8 +103,8 @@ const Alerts = () => {
             )}
             Testar Verificação
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleRefresh}
             disabled={isRefreshing}
           >

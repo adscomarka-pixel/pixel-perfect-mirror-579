@@ -4,13 +4,13 @@ import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Wallet, 
-  AlertTriangle, 
-  ShieldCheck, 
-  ShieldAlert, 
-  FileText, 
-  Users, 
+import {
+  Wallet,
+  AlertTriangle,
+  ShieldCheck,
+  ShieldAlert,
+  FileText,
+  Users,
   TrendingDown,
   Clock,
   CheckCircle2,
@@ -18,16 +18,9 @@ import {
   AlertCircle,
   BarChart3
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatBRL, parseToNumber } from "@/lib/utils";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(value);
-};
 
 const Dashboard = () => {
   const { stats, recentAlerts, accountsSummary, isLoading } = useDashboardStats();
@@ -76,7 +69,7 @@ const Dashboard = () => {
               <Skeleton className="h-8 w-32" />
             ) : (
               <>
-                <p className="text-2xl font-bold">{formatCurrency(stats.totalBalance)}</p>
+                <p className="text-2xl font-bold">{formatBRL(stats.totalBalance)}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant={balanceHealth.variant}>{balanceHealth.label}</Badge>
                   {stats.accountsWithLowBalance > 0 && (
@@ -134,8 +127,8 @@ const Dashboard = () => {
             </CardTitle>
             <div className={cn(
               "w-8 h-8 rounded-lg flex items-center justify-center",
-              stats.tokensExpired > 0 ? "bg-destructive/10" : 
-              stats.tokensExpiringSoon > 0 ? "bg-warning/10" : "bg-success/10"
+              stats.tokensExpired > 0 ? "bg-destructive/10" :
+                stats.tokensExpiringSoon > 0 ? "bg-warning/10" : "bg-success/10"
             )}>
               {stats.tokensExpired > 0 ? (
                 <ShieldAlert className="h-4 w-4 text-destructive" />
@@ -202,8 +195,8 @@ const Dashboard = () => {
               <>
                 <p className="text-2xl font-bold">{stats.unreadAlerts}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {stats.unreadAlerts === 0 ? "Nenhum alerta pendente" : 
-                   stats.unreadAlerts === 1 ? "alerta não lido" : "alertas não lidos"}
+                  {stats.unreadAlerts === 0 ? "Nenhum alerta pendente" :
+                    stats.unreadAlerts === 1 ? "alerta não lido" : "alertas não lidos"}
                 </p>
               </>
             )}
@@ -225,7 +218,7 @@ const Dashboard = () => {
             {isLoading ? (
               <Skeleton className="h-7 w-28" />
             ) : (
-              <p className="text-xl font-semibold">{formatCurrency(stats.totalDailySpend)}</p>
+              <p className="text-xl font-semibold">{formatBRL(stats.totalDailySpend)}</p>
             )}
           </CardContent>
         </Card>
@@ -271,9 +264,9 @@ const Dashboard = () => {
                   {stats.activeAccounts}/{stats.totalAccounts}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {stats.totalAccounts === 0 ? "Nenhuma conta" : 
-                   stats.activeAccounts === stats.totalAccounts ? "Todas ativas" : 
-                   `${stats.totalAccounts - stats.activeAccounts} inativa(s)`}
+                  {stats.totalAccounts === 0 ? "Nenhuma conta" :
+                    stats.activeAccounts === stats.totalAccounts ? "Todas ativas" :
+                      `${stats.totalAccounts - stats.activeAccounts} inativa(s)`}
                 </p>
               </>
             )}
@@ -307,8 +300,8 @@ const Dashboard = () => {
             ) : (
               <div className="space-y-3">
                 {accountsSummary.map((account) => (
-                  <div 
-                    key={account.id} 
+                  <div
+                    key={account.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                   >
                     <div className="flex items-center gap-3">
@@ -324,12 +317,12 @@ const Dashboard = () => {
                     <div className="text-right">
                       <p className={cn(
                         "font-semibold",
-                        (account.balance || 0) < 500 ? "text-destructive" : "text-foreground"
+                        parseToNumber(account.balance) < 500 ? "text-destructive" : "text-foreground"
                       )}>
-                        {formatCurrency(account.balance || 0)}
+                        {formatBRL(account.balance)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Gasto: {formatCurrency(account.daily_spend || 0)}/dia
+                        Gasto: {formatBRL(account.daily_spend)}/dia
                       </p>
                     </div>
                   </div>
@@ -363,8 +356,8 @@ const Dashboard = () => {
             ) : (
               <div className="space-y-3">
                 {recentAlerts.map((alert) => (
-                  <div 
-                    key={alert.id} 
+                  <div
+                    key={alert.id}
                     className={cn(
                       "flex items-start gap-3 p-3 rounded-lg",
                       alert.is_read ? "bg-muted/30" : "bg-muted/50"
@@ -373,8 +366,8 @@ const Dashboard = () => {
                     <div className={cn(
                       "w-2 h-2 rounded-full mt-2 flex-shrink-0",
                       alert.type === 'low_balance' ? "bg-warning" :
-                      alert.type === 'token_expiry' ? "bg-destructive" :
-                      "bg-primary"
+                        alert.type === 'token_expiry' ? "bg-destructive" :
+                          "bg-primary"
                     )} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -392,9 +385,9 @@ const Dashboard = () => {
                         {alert.message}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(parseISO(alert.sent_at), { 
-                          addSuffix: true, 
-                          locale: ptBR 
+                        {formatDistanceToNow(parseISO(alert.sent_at), {
+                          addSuffix: true,
+                          locale: ptBR
                         })}
                       </p>
                     </div>

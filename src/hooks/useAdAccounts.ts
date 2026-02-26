@@ -4,11 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 // Meta campaign objective types
-export type MetaCampaignObjective = 
-  | 'MESSAGES' 
-  | 'LEADS' 
-  | 'CONVERSIONS' 
-  | 'TRAFFIC' 
+export type MetaCampaignObjective =
+  | 'MESSAGES'
+  | 'LEADS'
+  | 'CONVERSIONS'
+  | 'TRAFFIC'
   | 'ENGAGEMENT';
 
 export const CAMPAIGN_OBJECTIVES: { value: MetaCampaignObjective; label: string; metric: string; icon: string }[] = [
@@ -29,8 +29,8 @@ export interface AdAccount {
   access_token: string;
   refresh_token: string | null;
   token_expires_at: string | null;
-  balance: number;
-  daily_spend: number;
+  balance: number | string;
+  daily_spend: number | string;
   min_balance_alert: number;
   alert_enabled: boolean;
   status: string;
@@ -38,6 +38,8 @@ export interface AdAccount {
   updated_at: string;
   last_sync_at: string | null;
   report_objectives: MetaCampaignObjective[] | null;
+  client_id: string | null;
+  is_manager: boolean;
 }
 
 export function useAdAccounts() {
@@ -58,6 +60,23 @@ export function useAdAccounts() {
 
   const deleteAccount = useMutation({
     mutationFn: async (accountId: string) => {
+      // Get account details first to delete children if it's a manager
+      const { data: account } = await supabase
+        .from('ad_accounts')
+        .select('user_id, platform, is_manager')
+        .eq('id', accountId)
+        .single();
+
+      if (account?.is_manager) {
+        // Delete child accounts from the same user and platform
+        await supabase
+          .from('ad_accounts')
+          .delete()
+          .eq('user_id', account.user_id)
+          .eq('platform', account.platform)
+          .eq('is_manager', false);
+      }
+
       const { error } = await supabase
         .from('ad_accounts')
         .delete()
@@ -67,10 +86,10 @@ export function useAdAccounts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
-      toast.success('Conta removida com sucesso');
+      toast.success('Conexão removida com sucesso');
     },
-    onError: (error) => {
-      toast.error('Erro ao remover conta: ' + error.message);
+    onError: (error: any) => {
+      toast.error('Erro ao remover conexão: ' + error.message);
     }
   });
 
@@ -102,13 +121,12 @@ export function useAdAccounts() {
         return response.data;
       }
 
-      // For Meta accounts, just update the timestamp (Meta balance is fetched on connect)
-      const { error } = await supabase
-        .from('ad_accounts')
-        .update({ last_sync_at: new Date().toISOString() })
-        .eq('id', accountId);
-
-      if (error) throw error;
+      // For Meta accounts, trigger the global sync function
+      if (account.platform === 'meta') {
+        const response = await supabase.functions.invoke('sync-all-balances');
+        if (response.error) throw new Error(response.error.message);
+        return response.data;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
@@ -157,32 +175,23 @@ export function useAdAccounts() {
         body: { fullRefresh: true }
       });
 
-      // Full refresh for Meta accounts
-      const metaResponse = await supabase.functions.invoke('sync-meta-balance', {
-        body: { fullRefresh: true }
-      }).catch(() => ({ data: null, error: null })); // Meta sync might not exist yet
+      // Full refresh for all accounts
+      const syncResponse = await supabase.functions.invoke('sync-all-balances');
 
-      if (googleResponse.error) {
-        throw new Error(googleResponse.error.message);
+      if (syncResponse.error) {
+        throw new Error(syncResponse.error.message);
       }
 
-      if (googleResponse.data?.error) {
-        throw new Error(googleResponse.data.error);
-      }
-
-      return {
-        google: googleResponse.data,
-        meta: metaResponse.data
-      };
+      return syncResponse.data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      
+
       const messages: string[] = [];
       if (data.google?.message) messages.push(data.google.message);
       if (data.meta?.message) messages.push(data.meta.message);
-      
+
       toast.success(messages.join(' | ') || 'Sincronização completa realizada');
     },
     onError: (error: any) => {
@@ -232,7 +241,7 @@ export function useOAuthConnect() {
 
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
       toast.success(response.data?.message || 'Conta conectada com sucesso!');
-      
+
       return response.data;
     } catch (error: any) {
       console.error('Error connecting Meta via token:', error);
@@ -266,7 +275,7 @@ export function useOAuthConnect() {
 
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
       toast.success(response.data?.message || 'Conta Google Ads conectada com sucesso!');
-      
+
       return response.data;
     } catch (error: any) {
       console.error('Error connecting Google via token:', error);
@@ -347,7 +356,7 @@ export function useOAuthConnect() {
     setIsConnecting(true);
     try {
       const functionName = platform === 'meta' ? 'oauth-meta' : 'oauth-google';
-      
+
       const response = await supabase.functions.invoke(functionName, {
         body: {
           action: 'exchange_code',
@@ -366,10 +375,10 @@ export function useOAuthConnect() {
 
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
       toast.success(response.data?.message || 'Conta conectada com sucesso!');
-      
+
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
-      
+
       return response.data;
     } catch (error: any) {
       console.error('Error handling OAuth callback:', error);

@@ -1,10 +1,12 @@
-import { Bell, AlertTriangle, CheckCircle2, Loader2, Trash2 } from "lucide-react";
+import { Bell, AlertTriangle, CheckCircle2, Loader2, Trash2, Search } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +21,7 @@ import {
 
 export function NotificationsTab() {
   const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Fetch all alerts
   const { data: alerts, isLoading } = useQuery({
@@ -29,7 +32,7 @@ export function NotificationsTab() {
         .select('*')
         .order('sent_at', { ascending: false })
         .limit(50);
-      
+
       if (error) throw error;
       return data;
     },
@@ -42,7 +45,7 @@ export function NotificationsTab() {
         .from('alerts')
         .update({ is_read: true })
         .eq('id', alertId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -59,7 +62,7 @@ export function NotificationsTab() {
         .from('alerts')
         .update({ is_read: true })
         .eq('is_read', false);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -77,7 +80,7 @@ export function NotificationsTab() {
         .from('alerts')
         .delete()
         .eq('id', alertId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -99,7 +102,7 @@ export function NotificationsTab() {
         .from('alerts')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all (neq with impossible ID)
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -127,14 +130,14 @@ export function NotificationsTab() {
         <div>
           <h3 className="font-semibold text-foreground">Central de Notificações</h3>
           <p className="text-sm text-muted-foreground">
-            {unreadCount > 0 
-              ? `${unreadCount} notificação(ões) não lida(s)` 
+            {unreadCount > 0
+              ? `${unreadCount} notificação(ões) não lida(s)`
               : 'Todas as notificações foram lidas'}
           </p>
         </div>
         {unreadCount > 0 && (
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => markAllAsReadMutation.mutate()}
             disabled={markAllAsReadMutation.isPending}
@@ -150,8 +153,8 @@ export function NotificationsTab() {
         {alerts && alerts.length > 0 && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 disabled={deleteAllAlertsMutation.isPending}
@@ -185,6 +188,17 @@ export function NotificationsTab() {
         )}
       </div>
 
+      {/* Search Box */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Pesquisar notificações..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
       {/* Notifications List */}
       <div className="bg-card rounded-xl border border-border shadow-card">
         {isLoading ? (
@@ -202,71 +216,73 @@ export function NotificationsTab() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {alerts.map((alert) => (
-              <div 
-                key={alert.id} 
-                className={`p-4 hover:bg-muted/30 transition-colors ${
-                  !alert.is_read ? 'bg-accent/5' : ''
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    alert.type === "warning" || alert.type === "low_balance" 
-                      ? "bg-warning/10" 
-                      : alert.type === "critical" 
-                      ? "bg-destructive/10"
-                      : "bg-success/10"
-                  }`}>
-                    {alert.type === "warning" || alert.type === "low_balance" || alert.type === "critical" ? (
-                      <AlertTriangle className={`w-5 h-5 ${
-                        alert.type === "critical" ? "text-destructive" : "text-warning"
-                      }`} />
-                    ) : (
-                      <CheckCircle2 className="w-5 h-5 text-success" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium text-foreground">{alert.title}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {!alert.is_read && (
+            {alerts
+              ?.filter(a =>
+                a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                a.message.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`p-4 hover:bg-muted/30 transition-colors ${!alert.is_read ? 'bg-accent/5' : ''
+                    }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${alert.type === "warning" || alert.type === "low_balance"
+                        ? "bg-warning/10"
+                        : alert.type === "critical"
+                          ? "bg-destructive/10"
+                          : "bg-success/10"
+                      }`}>
+                      {alert.type === "warning" || alert.type === "low_balance" || alert.type === "critical" ? (
+                        <AlertTriangle className={`w-5 h-5 ${alert.type === "critical" ? "text-destructive" : "text-warning"
+                          }`} />
+                      ) : (
+                        <CheckCircle2 className="w-5 h-5 text-success" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-foreground">{alert.title}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!alert.is_read && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => markAsReadMutation.mutate(alert.id)}
+                              disabled={markAsReadMutation.isPending}
+                            >
+                              Marcar como lida
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
-                            size="sm"
-                            onClick={() => markAsReadMutation.mutate(alert.id)}
-                            disabled={markAsReadMutation.isPending}
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => deleteAlertMutation.mutate(alert.id)}
+                            disabled={deleteAlertMutation.isPending}
                           >
-                            Marcar como lida
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteAlertMutation.mutate(alert.id)}
-                          disabled={deleteAlertMutation.isPending}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {formatAlertTime(alert.sent_at)}
-                      </span>
-                      {!alert.is_read && (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent">
-                          Novo
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-muted-foreground">
+                          {formatAlertTime(alert.sent_at)}
                         </span>
-                      )}
+                        {!alert.is_read && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent">
+                            Novo
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>

@@ -7,7 +7,6 @@ const corsHeaders = {
 
 async function sendWebhookNotifications(supabase: any, alert: any, account: any) {
   try {
-    // Fetch active webhooks for this user that trigger on low balance
     const { data: webhooks, error } = await supabase
       .from('webhook_integrations')
       .select('*')
@@ -25,7 +24,6 @@ async function sendWebhookNotifications(supabase: any, alert: any, account: any)
       return
     }
 
-    // Send to each webhook
     for (const webhook of webhooks) {
       try {
         const payload = {
@@ -45,9 +43,7 @@ async function sendWebhookNotifications(supabase: any, alert: any, account: any)
 
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
 
@@ -65,8 +61,27 @@ async function sendWebhookNotifications(supabase: any, alert: any, account: any)
   }
 }
 
+// FUNÇÃO AUXILIAR: Converte "3.890,75" ou "100.00" para número float
+function parseBalanceToNumber(balanceStr: any): number {
+  if (!balanceStr) return 0;
+  
+  // Se já for número, retorna direto
+  if (typeof balanceStr === 'number') return balanceStr;
+  
+  const str = String(balanceStr);
+  
+  // Verifica se o formato é brasileiro (ex: 3.890,75) ou americano (3890.75)
+  // Se tiver vírgula, tratamos como formato BR
+  if (str.includes(',')) {
+    const cleanStr = str.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleanStr) || 0;
+  }
+  
+  // Se não tiver vírgula, tenta converter diretamente (ex: "540.26")
+  return parseFloat(str) || 0;
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -76,13 +91,22 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Fetch all ad accounts with alerts enabled
     const { data: accounts, error: accountsError } = await supabase
       .from('ad_accounts')
-      .select('id, user_id, account_name, platform, balance, min_balance_alert, alert_enabled')
+      .select(`
+        id, 
+        user_id, 
+        account_name, 
+        platform, 
+        balance, 
+        min_balance_alert, 
+        alert_enabled,
+        client_id,
+        clients (enable_balance_check)
+      `)
       .eq('alert_enabled', true)
 
     if (accountsError) {
@@ -95,15 +119,20 @@ Deno.serve(async (req) => {
     const alertsCreated: string[] = []
 
     for (const account of accounts || []) {
-      const balance = Number(account.balance) || 0
+      if (account.client_id && account.clients && account.clients.enable_balance_check === false) {
+        console.log(`⏭️ Skipping ${account.account_name} - balance check disabled for client`)
+        continue
+      }
+
+      // USO DA NOVA FUNÇÃO DE PARSE PARA LER A STRING
+      const balanceNum = parseBalanceToNumber(account.balance)
       const minBalance = Number(account.min_balance_alert) || 500
 
-      console.log(`Checking ${account.account_name}: balance=${balance}, minBalance=${minBalance}`)
+      console.log(`Checking ${account.account_name}: text_balance="${account.balance}" -> parsed_balance=${balanceNum}, minBalance=${minBalance}`)
 
-      if (balance < minBalance) {
-        // Check if we already sent an alert for this account in the last 24 hours
+      if (balanceNum < minBalance) {
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-        
+
         const { data: recentAlert } = await supabase
           .from('alerts')
           .select('id')
@@ -117,9 +146,8 @@ Deno.serve(async (req) => {
           continue
         }
 
-        // Create new alert
         const alertTitle = `⚠️ Saldo baixo: ${account.account_name}`
-        const alertMessage = `O saldo da conta ${account.account_name} (${account.platform}) está em R$ ${balance.toFixed(2)}, abaixo do limite configurado de R$ ${minBalance.toFixed(2)}.`
+        const alertMessage = `O saldo da conta ${account.account_name} (${account.platform}) está em R$ ${balanceNum.toFixed(2).replace('.', ',')}, abaixo do limite configurado de R$ ${minBalance.toFixed(2).replace('.', ',')}.`
 
         const alertData = {
           user_id: account.user_id,
@@ -141,7 +169,6 @@ Deno.serve(async (req) => {
           console.log(`✅ Alert created for ${account.account_name}`)
           alertsCreated.push(account.account_name)
 
-          // Send webhook notifications
           await sendWebhookNotifications(supabase, alertData, account)
         }
       }

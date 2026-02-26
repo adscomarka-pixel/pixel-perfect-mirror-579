@@ -53,7 +53,7 @@ async function getManagerClients(
   developerToken: string
 ): Promise<Array<{ clientId: string; descriptiveName: string; isManager: boolean }>> {
   const clients: Array<{ clientId: string; descriptiveName: string; isManager: boolean }> = []
-  
+
   try {
     const query = `
       SELECT
@@ -106,7 +106,7 @@ async function getManagerClients(
   } catch (error) {
     console.log(`Error fetching clients for manager ${managerId}:`, error)
   }
-  
+
   return clients
 }
 
@@ -127,7 +127,7 @@ async function fetchGoogleAdsMetrics(
       'developer-token': developerToken,
       'Content-Type': 'application/json',
     }
-    
+
     if (loginCustomerId && loginCustomerId !== customerId) {
       headers['login-customer-id'] = loginCustomerId
     }
@@ -177,7 +177,7 @@ async function fetchGoogleAdsMetrics(
     } else {
       // Try simpler query
       const simpleQuery = `SELECT customer.descriptive_name, customer.manager FROM customer LIMIT 1`
-      
+
       try {
         const simpleResponse = await fetch(
           `https://googleads.googleapis.com/v19/customers/${customerId}/googleAds:searchStream`,
@@ -207,7 +207,7 @@ async function fetchGoogleAdsMetrics(
 
     // Try to get account balance using multiple approaches
     let balance = 0
-    
+
     // Approach 1: Get account budget with remaining amount
     try {
       const budgetQuery = `
@@ -233,7 +233,7 @@ async function fetchGoogleAdsMetrics(
       if (budgetResponse.ok) {
         const budgetData = await budgetResponse.json()
         console.log(`📦 Budget response for ${customerId}:`, JSON.stringify(budgetData))
-        
+
         if (budgetData && Array.isArray(budgetData)) {
           for (const batch of budgetData) {
             if (batch.results) {
@@ -241,16 +241,16 @@ async function fetchGoogleAdsMetrics(
                 const budget = result.accountBudget
                 if (budget) {
                   // Calculate remaining balance: approved limit - amount already served
-                  const approvedLimit = budget.approvedSpendingLimitMicros 
+                  const approvedLimit = budget.approvedSpendingLimitMicros
                     ? parseInt(budget.approvedSpendingLimitMicros) / 1000000
-                    : (budget.adjustedSpendingLimitMicros 
-                      ? parseInt(budget.adjustedSpendingLimitMicros) / 1000000 
+                    : (budget.adjustedSpendingLimitMicros
+                      ? parseInt(budget.adjustedSpendingLimitMicros) / 1000000
                       : 0)
-                  
-                  const amountServed = budget.amountServedMicros 
-                    ? parseInt(budget.amountServedMicros) / 1000000 
+
+                  const amountServed = budget.amountServedMicros
+                    ? parseInt(budget.amountServedMicros) / 1000000
                     : 0
-                  
+
                   if (approvedLimit > 0) {
                     // Remaining balance = limit - spent
                     balance = Math.max(0, approvedLimit - amountServed)
@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
         }
 
         const credentialKey = `${refreshToken}|${clientId}`
-        
+
         // Refresh access token
         const tokenResult = await refreshAccessToken(refreshToken, clientId, clientSecret)
 
@@ -422,9 +422,9 @@ Deno.serve(async (req) => {
         // If fullRefresh and we haven't processed these credentials yet, discover new accounts
         if (fullRefresh && !processedCredentials.has(credentialKey)) {
           processedCredentials.add(credentialKey)
-          
+
           console.log(`🔍 Discovering new accounts for credential set...`)
-          
+
           // List all accessible customers
           const customersResponse = await fetch('https://googleads.googleapis.com/v19/customers:listAccessibleCustomers', {
             headers: {
@@ -435,16 +435,16 @@ Deno.serve(async (req) => {
 
           if (customersResponse.ok) {
             const customersData = await customersResponse.json()
-            
+
             if (customersData.resourceNames) {
               const allAccountsMap = new Map<string, { name: string; isManager: boolean; parentMcc?: string }>()
-              
+
               for (const resourceName of customersData.resourceNames) {
                 const customerId = resourceName.replace('customers/', '')
-                
+
                 // Try to get clients from this account (works if it's a manager)
                 const clients = await getManagerClients(customerId, accessToken, developerToken)
-                
+
                 if (clients.length > 0) {
                   // This is a manager account
                   const managerEntry = clients.find(c => c.clientId === customerId)
@@ -452,7 +452,7 @@ Deno.serve(async (req) => {
                     name: managerEntry?.descriptiveName || '',
                     isManager: true
                   })
-                  
+
                   for (const client of clients) {
                     if (client.clientId !== customerId) {
                       allAccountsMap.set(client.clientId, {
@@ -471,19 +471,19 @@ Deno.serve(async (req) => {
 
               // Check for new accounts and add them
               const existingAccountIds = new Set(accounts.map(a => a.account_id))
-              
+
               for (const [accountIdStr, info] of allAccountsMap.entries()) {
                 if (!existingAccountIds.has(accountIdStr)) {
                   // New account found!
-                  let accountName = info.name && info.name.trim() !== '' 
-                    ? `Google Ads - ${info.name}` 
+                  let accountName = info.name && info.name.trim() !== ''
+                    ? `Google Ads - ${info.name}`
                     : `Google Ads - ${accountIdStr}`
-                  
+
                   if (info.isManager) {
                     accountName = `${accountName} (MCC)`
                   }
 
-                  const refreshTokenForNew = info.parentMcc 
+                  const refreshTokenForNew = info.parentMcc
                     ? `${refreshToken}|${clientId}|${clientSecret}|${info.parentMcc}`
                     : `${refreshToken}|${clientId}|${clientSecret}`
 
@@ -499,6 +499,7 @@ Deno.serve(async (req) => {
                       refresh_token: refreshTokenForNew,
                       token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
                       status: 'active',
+                      is_manager: info.isManager,
                       last_sync_at: new Date().toISOString()
                     })
 
@@ -533,12 +534,13 @@ Deno.serve(async (req) => {
         const updateData: Record<string, unknown> = {
           balance: metrics.balance,
           daily_spend: metrics.dailySpend,
+          is_manager: metrics.isManager,
           last_sync_at: new Date().toISOString()
         }
 
         // Update name if we got one and current name is just ID
         const currentNameIsJustId = account.account_name?.match(/^Google Ads - \d+(\s*\(MCC\))?$/)
-        
+
         if (metrics.descriptiveName && (fullRefresh || currentNameIsJustId)) {
           let newName = `Google Ads - ${metrics.descriptiveName}`
           if (metrics.isManager || account.account_name?.includes('(MCC)')) {

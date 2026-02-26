@@ -1,9 +1,10 @@
-import { FileText, Loader2, Trash2, Copy, CheckCircle2 } from "lucide-react";
+import { FileText, Loader2, Trash2, Copy, CheckCircle2, Search } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useState } from "react";
 import {
@@ -35,6 +36,7 @@ interface Report {
 export function ReportNotificationsTab() {
   const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Fetch all reports
   const { data: reports, isLoading } = useQuery({
@@ -45,7 +47,7 @@ export function ReportNotificationsTab() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
-      
+
       if (error) throw error;
       return data as Report[];
     },
@@ -58,7 +60,7 @@ export function ReportNotificationsTab() {
         .from('reports')
         .update({ is_read: true })
         .eq('id', reportId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -73,7 +75,7 @@ export function ReportNotificationsTab() {
         .from('reports')
         .update({ is_read: true })
         .eq('is_read', false);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -89,7 +91,7 @@ export function ReportNotificationsTab() {
         .from('reports')
         .delete()
         .eq('id', reportId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -108,7 +110,7 @@ export function ReportNotificationsTab() {
         .from('reports')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000');
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -144,15 +146,15 @@ export function ReportNotificationsTab() {
         <div>
           <h3 className="font-semibold text-foreground">Relatórios Gerados</h3>
           <p className="text-sm text-muted-foreground">
-            {unreadCount > 0 
-              ? `${unreadCount} relatório(s) não lido(s)` 
+            {unreadCount > 0
+              ? `${unreadCount} relatório(s) não lido(s)`
               : 'Todos os relatórios foram lidos'}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {unreadCount > 0 && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => markAllAsReadMutation.mutate()}
               disabled={markAllAsReadMutation.isPending}
@@ -168,8 +170,8 @@ export function ReportNotificationsTab() {
           {reports && reports.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                   disabled={deleteAllReportsMutation.isPending}
@@ -204,6 +206,17 @@ export function ReportNotificationsTab() {
         </div>
       </div>
 
+      {/* Search Box */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Pesquisar relatórios..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
       {/* Reports List */}
       <div className="bg-card rounded-xl border border-border shadow-card">
         {isLoading ? (
@@ -221,80 +234,84 @@ export function ReportNotificationsTab() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {reports.map((report) => (
-              <div 
-                key={report.id} 
-                className={`p-4 hover:bg-muted/30 transition-colors ${
-                  !report.is_read ? 'bg-accent/5' : ''
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <FileText className="w-5 h-5 text-accent" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{report.title}</p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                          <span>💰 R$ {report.total_investment.toFixed(2)}</span>
-                          <span>💬 {report.messages_count.toLocaleString('pt-BR')}</span>
-                          <span>📈 R$ {report.cost_per_message.toFixed(2)}</span>
+            {reports
+              ?.filter(r =>
+                r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                r.message.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .map((report) => (
+                <div
+                  key={report.id}
+                  className={`p-4 hover:bg-muted/30 transition-colors ${!report.is_read ? 'bg-accent/5' : ''
+                    }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-5 h-5 text-accent" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">{report.title}</p>
+                          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                            <span>💰 R$ {report.total_investment.toFixed(2)}</span>
+                            <span>💬 {report.messages_count.toLocaleString('pt-BR')}</span>
+                            <span>📈 R$ {report.cost_per_message.toFixed(2)}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(report)}
-                        >
-                          {copiedId === report.id ? (
-                            <CheckCircle2 className="w-4 h-4 mr-1 text-success" />
-                          ) : (
-                            <Copy className="w-4 h-4 mr-1" />
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(report)}
+                          >
+                            {copiedId === report.id ? (
+                              <CheckCircle2 className="w-4 h-4 mr-1 text-success" />
+                            ) : (
+                              <Copy className="w-4 h-4 mr-1" />
+                            )}
+                            {copiedId === report.id ? 'Copiado!' : 'Copiar'}
+                          </Button>
+                          {!report.is_read && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => markAsReadMutation.mutate(report.id)}
+                              disabled={markAsReadMutation.isPending}
+                            >
+                              Marcar como lido
+                            </Button>
                           )}
-                          {copiedId === report.id ? 'Copiado!' : 'Copiar'}
-                        </Button>
-                        {!report.is_read && (
                           <Button
                             variant="ghost"
-                            size="sm"
-                            onClick={() => markAsReadMutation.mutate(report.id)}
-                            disabled={markAsReadMutation.isPending}
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => deleteReportMutation.mutate(report.id)}
+                            disabled={deleteReportMutation.isPending}
                           >
-                            Marcar como lido
+                            <Trash2 className="w-4 h-4" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteReportMutation.mutate(report.id)}
-                          disabled={deleteReportMutation.isPending}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="mt-3 p-3 bg-muted/30 rounded-lg">
-                      <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">
-                        {report.message}
-                      </pre>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {formatReportTime(report.created_at)}
-                      </span>
-                      {!report.is_read && (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent">
-                          Novo
+                      <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+                        <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans">
+                          {report.message}
+                        </pre>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-muted-foreground">
+                          {formatReportTime(report.created_at)}
                         </span>
-                      )}
+                        {!report.is_read && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent">
+                            Novo
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { formatBRL, parseToNumber } from "@/lib/utils";
 
 interface AdAccountAlert {
   id: string;
@@ -14,7 +15,7 @@ interface AdAccountAlert {
   platform: string;
   alert_enabled: boolean;
   min_balance_alert: number;
-  balance: number;
+  balance: number | string;
 }
 
 interface AlertConfigTabProps {
@@ -28,6 +29,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [bulkLimitValue, setBulkLimitValue] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Fetch user's default min balance from notification_settings
   const { data: notificationSettings } = useQuery({
@@ -39,7 +41,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
         .select('default_min_balance')
         .eq('user_id', user.id)
         .single();
-      
+
       if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
@@ -55,7 +57,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
         .from('ad_accounts')
         .update({ alert_enabled: enabled })
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -74,7 +76,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
         .from('ad_accounts')
         .update({ min_balance_alert: minBalance })
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -91,12 +93,12 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
   const bulkUpdateMutation = useMutation({
     mutationFn: async (minBalance: number) => {
       if (!accounts || accounts.length === 0) return;
-      
+
       const { error } = await supabase
         .from('ad_accounts')
         .update({ min_balance_alert: minBalance })
         .in('id', accounts.map(a => a.id));
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -141,6 +143,10 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
     bulkUpdateMutation.mutate(value);
   };
 
+  const filteredAccounts = accounts?.filter(account =>
+    account.account_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       {/* Bulk Update Card */}
@@ -165,7 +171,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
               className="max-w-[180px]"
             />
           </div>
-          <Button 
+          <Button
             onClick={handleBulkUpdate}
             disabled={bulkUpdateMutation.isPending || !bulkLimitValue || !accounts || accounts.length === 0}
           >
@@ -194,7 +200,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          Quando o saldo de uma conta ficar abaixo do limite configurado, você receberá uma notificação. 
+          Quando o saldo de uma conta ficar abaixo do limite configurado, você receberá uma notificação.
           Ative ou desative alertas para cada conta individualmente e ajuste o valor mínimo clicando no limite.
           O limite padrão atual é R$ {defaultMinBalance.toLocaleString("pt-BR")}.
         </p>
@@ -202,11 +208,21 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
 
       {/* Alert Rules */}
       <div className="bg-card rounded-xl border border-border shadow-card">
-        <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h3 className="font-semibold text-foreground">Regras de Alerta por Conta</h3>
-          <span className="text-sm text-muted-foreground">
-            {accounts?.filter(a => a.alert_enabled).length || 0} ativas
-          </span>
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 md:w-64">
+              <Input
+                placeholder="Pesquisar conta..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredAccounts?.filter(a => a.alert_enabled).length || 0} ativas
+            </span>
+          </div>
         </div>
 
         {isLoading ? (
@@ -224,15 +240,13 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {accounts.map((account) => (
+            {filteredAccounts?.map((account) => (
               <div key={account.id} className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    account.alert_enabled ? "bg-warning/10" : "bg-muted"
-                  }`}>
-                    <Bell className={`w-5 h-5 ${
-                      account.alert_enabled ? "text-warning" : "text-muted-foreground"
-                    }`} />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${account.alert_enabled ? "bg-warning/10" : "bg-muted"
+                    }`}>
+                    <Bell className={`w-5 h-5 ${account.alert_enabled ? "text-warning" : "text-muted-foreground"
+                      }`} />
                   </div>
                   <div>
                     <p className="font-medium text-foreground">{account.account_name}</p>
@@ -249,9 +263,9 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
                             className="w-24 h-7 text-sm"
                             autoFocus
                           />
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="h-7 px-2"
                             onClick={() => handleSaveLimit(account.id)}
                             disabled={updateMinBalanceMutation.isPending}
@@ -262,9 +276,9 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
                               <CheckCircle2 className="w-3 h-3 text-success" />
                             )}
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="h-7 px-2"
                             onClick={handleCancelEdit}
                           >
@@ -272,7 +286,7 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
                           </Button>
                         </div>
                       ) : (
-                        <button 
+                        <button
                           onClick={() => handleEditLimit(account)}
                           className="hover:text-foreground hover:underline transition-colors"
                         >
@@ -281,12 +295,11 @@ export function AlertConfigTab({ accounts, isLoading }: AlertConfigTabProps) {
                       )}
                     </div>
                     {account.balance !== null && (
-                      <p className={`text-xs mt-1 ${
-                        (account.balance || 0) < (account.min_balance_alert || defaultMinBalance) 
-                          ? 'text-destructive' 
+                      <p className={`text-xs mt-1 ${parseToNumber(account.balance) < (account.min_balance_alert || defaultMinBalance)
+                          ? 'text-destructive'
                           : 'text-success'
-                      }`}>
-                        Saldo atual: R$ {(account.balance || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        }`}>
+                        Saldo atual: {formatBRL(account.balance)}
                       </p>
                     )}
                   </div>

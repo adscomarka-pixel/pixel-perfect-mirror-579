@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey)
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    
+
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     if (action === 'get_auth_url') {
       const scope = 'https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile'
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&access_type=offline&prompt=consent`
-      
+
       return new Response(
         JSON.stringify({ authUrl }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
           refresh_token: tokenData.refresh_token,
           token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
           status: 'active',
+          is_manager: true,
           last_sync_at: new Date().toISOString()
         }, {
           onConflict: 'user_id,account_id,platform'
@@ -121,8 +122,8 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           account: savedAccount,
           message: 'Google Ads account connected successfully'
         }),

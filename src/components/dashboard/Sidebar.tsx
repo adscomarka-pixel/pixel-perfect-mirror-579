@@ -15,6 +15,7 @@ const baseNavigation = [
   { name: "Alertas", href: "/dashboard/alerts", icon: Bell },
   { name: "Contas", href: "/dashboard/accounts", icon: Link2 },
   { name: "Tokens", href: "/dashboard/tokens", icon: Key },
+  { name: "Clientes", href: "/dashboard/clients", icon: Users },
   { name: "Guia de Uso", href: "/dashboard/guide", icon: BookOpen },
   { name: "Configurações", href: "/dashboard/settings", icon: Settings },
 ];
@@ -31,7 +32,7 @@ export function Sidebar() {
   const { isCollapsed, toggle } = useSidebar();
   const [profile, setProfile] = useState<{ full_name: string | null; company_name: string | null } | null>(null);
 
-  const navigation = canManageUsers 
+  const navigation = canManageUsers
     ? [...baseNavigation, ...adminNavigation]
     : baseNavigation;
 
@@ -67,7 +68,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside 
+    <aside
       className={cn(
         "fixed left-0 top-0 bottom-0 bg-sidebar border-r border-sidebar-border z-50 transition-all duration-300 ease-in-out",
         isCollapsed ? "w-16" : "w-64"
@@ -80,7 +81,7 @@ export function Sidebar() {
             <div className="w-9 h-9 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
               <BarChart3 className="w-5 h-5 text-sidebar-primary-foreground" />
             </div>
-            <span 
+            <span
               className={cn(
                 "font-bold text-lg text-sidebar-foreground whitespace-nowrap transition-all duration-300",
                 isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
@@ -124,7 +125,7 @@ export function Sidebar() {
                 )}
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span 
+                <span
                   className={cn(
                     "whitespace-nowrap transition-all duration-300",
                     isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
@@ -161,7 +162,7 @@ export function Sidebar() {
             {isCollapsed ? (
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center hover:bg-sidebar-accent/80 transition-colors"
                     title="Sair"
@@ -192,7 +193,7 @@ export function Sidebar() {
                     {user?.email || ""}
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={handleLogout}
                   className="p-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
                   title="Sair"
