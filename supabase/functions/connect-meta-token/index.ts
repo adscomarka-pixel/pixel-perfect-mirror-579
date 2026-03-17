@@ -11,12 +11,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration missing')
+    }
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), { 
+      return new Response(JSON.stringify({ error: 'Falta cabeçalho de autorização' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
@@ -27,104 +31,145 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), { 
+      return new Response(JSON.stringify({ error: 'Sessão inválida' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }
 
-    const { accessToken } = await req.json()
+    let payload;
+    try {
+      payload = await req.json()
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Payload inválido' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
+
+    const accessToken = payload.accessToken
     if (!accessToken) {
-      return new Response(JSON.stringify({ error: 'Access token is required' }), { 
+      return new Response(JSON.stringify({ error: 'Token da Meta é obrigatório' }), { 
         status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }
 
-    // 1. Validar usuário na Meta
-    const meResponse = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name,email&access_token=${accessToken}`)
+    // 1. Validar usuário na Meta (usar v21.0 - a mais estável)
+    console.log(`🚀 Iniciando conexão Meta para usuário: ${user.id}`)
+    const meResponse = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,email&access_token=${accessToken}`)
+    
+    if (!meResponse.ok) {
+        const errorData = await meResponse.json().catch(() => ({ message: 'Erro na autenticação Meta' }))
+        return new Response(JSON.stringify({ error: `Meta Auth: ${errorData.error?.message || errorData.message}` }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
+    }
+    
     const meData = await meResponse.json()
+    console.log(`✅ Usuário Meta: ${meData.name}`)
 
-    if (meData.error) {
-      return new Response(JSON.stringify({ error: meData.error.message }), { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    // 2. Salvar o Gestor Primeiro (Critical)
+    const managerAccountId = `meta_token_${meData.id}`
+    const { error: managerError } = await supabase
+      .from('ad_accounts')
+      .upsert({
+        user_id: user.id,
+        account_id: managerAccountId,
+        account_name: `Meta - ${meData.name} (Token)`,
+        platform: 'meta',
+        email: meData.email || null,
+        access_token: accessToken,
+        token_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'active',
+        is_manager: true,
+        last_sync_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,account_id,platform'
       })
+
+    if (managerError) {
+        console.error('❌ Erro gravando Gestor:', managerError)
+        return new Response(JSON.stringify({ error: `Erro no Banco: ${managerError.message}` }), { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        })
     }
 
-    // 2. Busca paginada de TODAS as contas
+    // 3. Buscar contas de anúncio (Removido 'insights' para ser mais rápido e evitar timeouts)
     let allAdAccounts = []
-    const fields = "id,name,account_status,balance,spend_cap,funding_source_details"
-    let nextUrl = `https://graph.facebook.com/v18.0/me/adaccounts?fields=${fields}&limit=50&access_token=${accessToken}`
+    const fields = "id,name,account_status,balance,available_balance,spend_cap,amount_spent,is_prepay_account,funding_source_details{amount_available,type,display_name,display_string}"
+    let nextUrl = `https://graph.facebook.com/v21.0/me/adaccounts?fields=${fields}&limit=50&access_token=${accessToken}`
 
-    while (nextUrl) {
+    // Limitamos a busca a no máximo 10 batches para evitar loops infinitos acidentais, mas 139 contas cabem em 3 batches
+    let safetyCounter = 0
+    while (nextUrl && safetyCounter < 20) {
+      safetyCounter++
       const response = await fetch(nextUrl)
+      if (!response.ok) break
       const result = await response.json()
-      if (result.error) break
       if (result.data) {
         allAdAccounts = [...allAdAccounts, ...result.data]
       }
       nextUrl = result.paging?.next || null
     }
 
-    // 3. Processar e Salvar no Banco
-    const savedAccounts = []
-    for (const account of allAdAccounts) {
-      const accountId = account.id.replace('act_', '')
-      
-      let finalValue = "0"
-      
-      // Lógica de extração de apenas números da display_string
-      if (account.funding_source_details?.display_string) {
-        const displayString = account.funding_source_details.display_string
-        
-        // Regex para capturar a sequência numérica (ex: 3.890,75 ou 0,00)
-        const match = displayString.match(/[\d\.,]+/g)
-        
-        if (match) {
-          // Pegamos o último conjunto de números (geralmente onde está o valor final)
-          // E retornamos apenas a string numérica limpa
-          finalValue = match[match.length - 1]
-        }
-      } else {
-        // Fallback para contas sem display_string (Pós-pagas)
-        finalValue = account.balance ? (parseFloat(account.balance) / 100).toFixed(2).replace('.', ',') : "0,00"
-      }
-      
-      const { data: savedAccount, error: saveError } = await supabase
-        .from('ad_accounts')
-        .upsert({
-          user_id: user.id,
-          account_id: accountId,
-          account_name: account.name || `Conta ${accountId}`,
-          platform: 'meta',
-          email: meData.email || null,
-          access_token: accessToken,
-          token_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-          balance: finalValue, // SALVA APENAS O NÚMERO (Ex: "3.890,75")
-          status: account.account_status === 1 ? 'active' : 'inactive',
-          last_sync_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,account_id,platform'
-        })
-        .select()
-        .single()
+    console.log(`📦 Processando ${allAdAccounts.length} sub-contas...`)
 
-      if (!saveError) savedAccounts.push(savedAccount)
+    // 4. Gravação Otimizada
+    if (allAdAccounts.length > 0) {
+        const batchSize = 50;
+        for (let i = 0; i < allAdAccounts.length; i += batchSize) {
+          const chunk = allAdAccounts.slice(i, i + batchSize).map(account => {
+            const accId = account.id.replace('act_', '')
+            
+            // Lógica Simplificada para Conexão Inicial
+            let balance = 0;
+            const isPrepay = account.is_prepay_account === true || account.is_prepay_account === 'true' || account.is_prepay_account === 1;
+            
+            // Tenta display_string primeiro se for prepay
+            if (isPrepay && account.funding_source_details?.display_string) {
+                const ds = account.funding_source_details.display_string;
+                const match = ds.match(/R\$\s*([\d\.,]+)/) || ds.match(/[\d\.,]+/g);
+                if (match) {
+                    const val = (Array.isArray(match) ? (match[1] || match[0]) : match).replace(/\./g, '').replace(',', '.');
+                    balance = parseFloat(val);
+                }
+            } else {
+                balance = account.available_balance ? parseFloat(account.available_balance) / 100 : 
+                          (account.balance ? Math.abs(parseFloat(account.balance) / 100) : 0);
+            }
+
+            return {
+              user_id: user.id,
+              account_id: accId,
+              account_name: account.name || `Conta ${accId}`,
+              platform: 'meta',
+              email: meData.email || null,
+              access_token: accessToken,
+              token_expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+              balance: balance.toFixed(2).replace('.', ','),
+              status: account.account_status === 1 ? 'active' : 'disconnected',
+              is_manager: false,
+              last_sync_at: new Date().toISOString()
+            }
+          });
+
+          await supabase
+            .from('ad_accounts')
+            .upsert(chunk, { onConflict: 'user_id,account_id,platform' })
+        }
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        total_found: allAdAccounts.length,
-        saved_count: savedAccounts.length,
-        message: `Sincronizadas ${allAdAccounts.length} contas.`
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: `Canais conectados com sucesso! ${allAdAccounts.length} contas configuradas.`
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
+  } catch (err) {
+    console.error('❌ Falha Crítica:', err)
+    return new Response(JSON.stringify({ error: err.message }), { 
       status: 500, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     })

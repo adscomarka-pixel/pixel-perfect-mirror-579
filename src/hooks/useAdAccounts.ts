@@ -95,38 +95,10 @@ export function useAdAccounts() {
 
   const syncAccount = useMutation({
     mutationFn: async (accountId: string) => {
-      // Get the account to check its platform
-      const { data: account, error: fetchError } = await supabase
-        .from('ad_accounts')
-        .select('platform')
-        .eq('id', accountId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // For Google accounts, call the sync edge function
-      if (account.platform === 'google') {
-        const response = await supabase.functions.invoke('sync-google-balance', {
-          body: { accountId }
-        });
-
-        if (response.error) {
-          throw new Error(response.error.message);
-        }
-
-        if (response.data?.error) {
-          throw new Error(response.data.error);
-        }
-
-        return response.data;
-      }
-
-      // For Meta accounts, trigger the global sync function
-      if (account.platform === 'meta') {
-        const response = await supabase.functions.invoke('sync-all-balances');
-        if (response.error) throw new Error(response.error.message);
-        return response.data;
-      }
+      // Use the Master Sync for everything now
+      const response = await supabase.functions.invoke('sync-all-balances');
+      if (response.error) throw new Error(response.error.message);
+      return response.data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
@@ -170,12 +142,7 @@ export function useAdAccounts() {
 
   const updateAccountNames = useMutation({
     mutationFn: async () => {
-      // Full refresh for Google accounts
-      const googleResponse = await supabase.functions.invoke('sync-google-balance', {
-        body: { fullRefresh: true }
-      });
-
-      // Full refresh for all accounts
+      // MASTER SYNC: Handles both Meta and Google, Managers and Individual accounts
       const syncResponse = await supabase.functions.invoke('sync-all-balances');
 
       if (syncResponse.error) {
@@ -188,11 +155,15 @@ export function useAdAccounts() {
       queryClient.invalidateQueries({ queryKey: ['ad-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
-      const messages: string[] = [];
-      if (data.google?.message) messages.push(data.google.message);
-      if (data.meta?.message) messages.push(data.meta.message);
-
-      toast.success(messages.join(' | ') || 'Sincronização completa realizada');
+      const results = data.results || [];
+      const successCount = results.filter((r: any) => r.success).length;
+      const totalProcessed = results.reduce((acc: number, r: any) => acc + (r.processed || 0), 0);
+      
+      if (successCount > 0) {
+        toast.success(`Sincronização concluída: ${totalProcessed} contas atualizadas.`);
+      } else {
+        toast.error('Nenhuma conta foi atualizada. Verifique os logs.');
+      }
     },
     onError: (error: any) => {
       toast.error('Erro na sincronização: ' + error.message);

@@ -49,12 +49,17 @@ const Accounts = () => {
     setExpandedManagers(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Filter accounts to show only managers/admin accounts
+  // Filter accounts to show managers OR "orphan" accounts (added via token but not marked as manager yet)
   const adminAccounts = accounts.filter(acc => acc.is_manager);
+  
+  // We'll also identify "lost" accounts that don't belong to any manager in the list
+  const orphanAccounts = accounts.filter(acc => 
+    !acc.is_manager && 
+    !adminAccounts.some(admin => admin.platform === acc.platform)
+  );
 
-  // Group child accounts by platform (since currently we don't have a direct parent_id, 
-  // but they are shared by user_id + platform)
-  const getChildAccounts = (platform: string) => {
+  // Group child accounts by platform
+  const getChildAccounts = (platform: string, managerId?: string) => {
     return accounts.filter(acc => !acc.is_manager && acc.platform === platform);
   };
 
@@ -234,7 +239,7 @@ const Accounts = () => {
       {/* Connected Accounts List */}
       <div className="bg-card rounded-xl border border-border shadow-card">
         <div className="p-4 border-b border-border flex items-center justify-between">
-          <h3 className="font-semibold text-foreground">Canais Ativos ({adminAccounts.length})</h3>
+          <h3 className="font-semibold text-foreground">Canais Ativos ({adminAccounts.length + orphanAccounts.length})</h3>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -258,7 +263,7 @@ const Accounts = () => {
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
             <p className="text-muted-foreground mt-2">Carregando canais...</p>
           </div>
-        ) : adminAccounts.length === 0 ? (
+        ) : (adminAccounts.length === 0 && orphanAccounts.length === 0) ? (
           <div className="p-8 text-center">
             <p className="text-muted-foreground">Nenhum canal administrativo conectado ainda.</p>
             <p className="text-sm text-muted-foreground mt-1">
@@ -267,6 +272,7 @@ const Accounts = () => {
           </div>
         ) : (
           <div className="divide-y divide-border">
+            {/* Managed Accounts */}
             {adminAccounts.map((account) => {
               const children = getChildAccounts(account.platform);
               const isExpanded = expandedManagers[account.id];
@@ -389,6 +395,36 @@ const Accounts = () => {
                 </div>
               );
             })}
+
+            {/* Orphan Accounts (added via token) */}
+            {orphanAccounts.length > 0 && (
+              <div className="bg-muted/5 p-4 border-t border-border">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Contas Individuais (Token)</h4>
+                <div className="space-y-2">
+                  {orphanAccounts.map((account) => (
+                    <div key={account.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${account.platform === "meta" ? "bg-[#1877F2]/10" : "bg-[#4285F4]/10"}`}>
+                          <Key className={`w-4 h-4 ${account.platform === "meta" ? "text-[#1877F2]" : "text-[#4285F4]"}`} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{account.account_name}</p>
+                          <p className="text-[10px] text-muted-foreground">ID: {account.account_id}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(account.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

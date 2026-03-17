@@ -140,25 +140,28 @@ export function IntegrationsTab() {
   const testWebhook = async (webhook: WebhookIntegration) => {
     setTestingId(webhook.id);
     try {
-      const response = await fetch(webhook.webhook_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'test',
-          message: 'Teste de conexão do CMK Performance',
-          timestamp: new Date().toISOString(),
-        }),
+      const { data, error } = await supabase.functions.invoke('test-webhook', {
+        body: {
+          url: webhook.webhook_url,
+          payload: {
+            type: 'test',
+            message: 'Teste de conexão do CMK Performance (Alertas)',
+            timestamp: new Date().toISOString(),
+          }
+        }
       });
 
-      if (response.ok) {
+      if (error) throw error;
+
+      if (data.success) {
         toast.success('Webhook testado com sucesso!');
       } else {
-        toast.error(`Erro no webhook: ${response.status}`);
+        toast.error(`Erro no webhook: ${data.status}`);
       }
-    } catch (error) {
-      toast.error('Erro ao testar webhook. Verifique a URL.');
+    } catch (error: any) {
+      console.error('Webhook test error detail:', error);
+      const errorMessage = error.message || (error.statusText ? `${error.status}: ${error.statusText}` : 'Erro desconhecido');
+      toast.error(`Falha na conexão: ${errorMessage}. Verifique se a Edge Function está implantada ou se a URL está correta.`);
     } finally {
       setTestingId(null);
     }

@@ -8,6 +8,8 @@ const corsHeaders = {
 interface ReportData {
   periodDays?: number;
   accountId?: string;
+  automated?: boolean;
+  userId?: string;
 }
 
 interface AdAccount {
@@ -20,6 +22,7 @@ interface AdAccount {
   balance: string | number;
   daily_spend: string | number;
   report_objectives: string[] | null;
+  client_id: string | null;
 }
 
 interface MetaInsights {
@@ -355,6 +358,7 @@ async function sendWebhookNotifications(supabase: any, report: any, userId: stri
             created_at: report.created_at,
             objective: report.objective,
           },
+          client: report.client || null,
         }
 
         await fetch(webhook.webhook_url, {
@@ -380,7 +384,8 @@ async function generateReportForObjective(
   endDate: Date,
   objective: CampaignObjective,
   metaInsights: MetaInsights | null,
-  googleInsights: GoogleAdsInsights | null
+  googleInsights: GoogleAdsInsights | null,
+  clientInfo: any = null
 ) {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -463,7 +468,7 @@ Vamo pra cima!! 🚀`
     throw insertError
   }
 
-  await sendWebhookNotifications(supabase, { ...insertedReport, objective }, userId)
+  await sendWebhookNotifications(supabase, { ...insertedReport, objective, client: clientInfo }, userId)
 
   return {
     account: productName,
@@ -504,6 +509,23 @@ async function generateReportsForAccount(
     );
   }
 
+  // Fetch client info if available
+  let clientInfo = null;
+  if (account.client_id) {
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('name, whatsapp_group_link')
+      .eq('id', account.client_id)
+      .single();
+    
+    if (!clientError && client) {
+      clientInfo = {
+        name: client.name,
+        whatsapp_group_link: client.whatsapp_group_link
+      };
+    }
+  }
+
   const results = [];
 
   for (const objective of objectives) {
@@ -517,7 +539,8 @@ async function generateReportsForAccount(
         endDate,
         objective,
         metaInsights,
-        googleInsights
+        googleInsights,
+        clientInfo
       );
       results.push(result);
     } catch (error) {
@@ -543,18 +566,29 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing authorization header')
-
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
-
-    if (userError || !user) throw new Error('Invalid user token')
-
     let requestData: ReportData = {}
     try {
       requestData = await req.json()
     } catch {}
+
+    let userPrincipal = null
+
+    // If it's an automated request from our system, we use the userId from body
+    if (requestData.automated && requestData.userId) {
+      const { data: { user: foundUser }, error: fetchUserError } = await supabase.auth.admin.getUserById(requestData.userId)
+      if (fetchUserError || !foundUser) throw new Error('Invalid automation user')
+      userPrincipal = foundUser
+    } else {
+      // Normal auth flow
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) throw new Error('Missing authorization header')
+
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+
+      if (userError || !user) throw new Error('Invalid user token')
+      userPrincipal = user
+    }
 
     const periodDays = requestData.periodDays || 7
     const accountId = requestData.accountId 
@@ -569,8 +603,13 @@ Deno.serve(async (req) => {
 
     let accountsQuery = supabase
       .from('ad_accounts')
-      .select('id, account_id, account_name, platform, access_token, refresh_token, balance, daily_spend, report_objectives')
-      .eq('user_id', user.id)
+      .select('id, account_id, account_name, platform, access_token, refresh_token, balance, daily_spend, report_objectives, client_id')
+      .eq('user_id', userPrincipal.id)
+
+    // Se for execução automática, apenas contas vinculadas a clientes
+    if (requestData.automated) {
+      accountsQuery = accountsQuery.not('client_id', 'is', null)
+    }
 
     if (accountId) {
       accountsQuery = accountsQuery.eq('id', accountId)
@@ -599,7 +638,7 @@ Deno.serve(async (req) => {
         const accountResults = await generateReportsForAccount(
           supabase,
           account,
-          user.id,
+          userPrincipal.id,
           periodDays,
           startDate,
           endDate

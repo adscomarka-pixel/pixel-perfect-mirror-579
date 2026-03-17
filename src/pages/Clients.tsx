@@ -67,6 +67,8 @@ const Clients = () => {
     const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
     const [newClient, setNewClient] = useState({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "" });
+    const [editingClient, setEditingClient] = useState<Client | null>(null);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
     // Link account state
     const [linkPlatform, setLinkPlatform] = useState<"meta" | "google">("meta");
@@ -74,6 +76,31 @@ const Clients = () => {
     const [selectedAccountId, setSelectedAccountId] = useState("");
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const [accountToConfig, setAccountToConfig] = useState<AdAccount | null>(null);
+
+    const handleOpenEdit = (client: Client) => {
+        setEditingClient(client);
+        setIsEditDialogOpen(true);
+    };
+
+    const handleUpdateClient = () => {
+        if (!editingClient || !editingClient.name) {
+            toast.error("O nome do cliente é obrigatório");
+            return;
+        }
+        
+        updateClient.mutate({
+            id: editingClient.id,
+            name: editingClient.name,
+            whatsapp_group_link: editingClient.whatsapp_group_link,
+            enable_balance_check: editingClient.enable_balance_check,
+            manager_id: editingClient.manager_id === "none" ? null : editingClient.manager_id
+        }, {
+            onSuccess: () => {
+                setIsEditDialogOpen(false);
+                setEditingClient(null);
+            }
+        });
+    };
 
     const handleOpenConfig = (account: AdAccount) => {
         setAccountToConfig(account);
@@ -231,10 +258,7 @@ const Clients = () => {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                                onClick={() => {
-                                                    const name = prompt("Novo nome:", client.name);
-                                                    if (name) updateClient.mutate({ id: client.id, name });
-                                                }}
+                                                onClick={() => handleOpenEdit(client)}
                                             >
                                                 <Settings2 className="w-4 h-4" />
                                             </Button>
@@ -499,6 +523,75 @@ const Clients = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Edit Client Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Editar Cliente</DialogTitle>
+                        <DialogDescription>
+                            Atualize as informações do cliente.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {editingClient && (
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-name">Nome do Cliente/Empresa</Label>
+                                <Input
+                                    id="edit-name"
+                                    value={editingClient.name}
+                                    onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-whatsapp">Link do Grupo WhatsApp (Opcional)</Label>
+                                <Input
+                                    id="edit-whatsapp"
+                                    placeholder="https://chat.whatsapp.com/..."
+                                    value={editingClient.whatsapp_group_link || ""}
+                                    onChange={(e) => setEditingClient({ ...editingClient, whatsapp_group_link: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-manager">Gestor Responsável</Label>
+                                <Select
+                                    value={editingClient.manager_id || "none"}
+                                    onValueChange={(val) => setEditingClient({ ...editingClient, manager_id: val === "none" ? null : val })}
+                                >
+                                    <SelectTrigger id="edit-manager">
+                                        <SelectValue placeholder="Selecione um gestor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Nenhum</SelectItem>
+                                        {managers.map((m) => (
+                                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <Label>Verificação de Saldo</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Ativar automação de saldo para este cliente
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={editingClient.enable_balance_check}
+                                    onCheckedChange={(checked) => setEditingClient({ ...editingClient, enable_balance_check: checked })}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleUpdateClient} disabled={updateClient.isPending}>
+                            {updateClient.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Salvar Alterações
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Account Config Dialog */}
             <AccountConfigDialog
                 account={accountToConfig}

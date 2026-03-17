@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
           platform: 'meta',
           access_token: accessToken,
           token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
-          status: account.account_status === 1 ? 'active' : 'inactive',
+          status: account.account_status === 1 ? 'active' : 'disconnected',
           balance: balanceValue,
           spend_cap: account.spend_cap ? parseFloat(account.spend_cap) / 100 : null,
           last_sync_at: new Date().toISOString(),

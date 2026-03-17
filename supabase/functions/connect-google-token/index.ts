@@ -362,6 +362,7 @@ Deno.serve(async (req) => {
             refresh_token: refreshTokenData,
             token_expires_at: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString(),
             status: 'active',
+            is_manager: info.isManager,
             last_sync_at: new Date().toISOString()
           }, {
             onConflict: 'user_id,account_id,platform'

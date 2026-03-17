@@ -121,16 +121,14 @@ export function ReportIntegrationsTab() {
   const testWebhook = async (webhook: WebhookIntegration) => {
     setTestingId(webhook.id);
     try {
-      const response = await fetch(webhook.webhook_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'weekly_report',
-          report: {
-            title: '📊 Relatório Semanal - Teste',
-            message: `Bom dia,
+      const { data, error } = await supabase.functions.invoke('test-webhook', {
+        body: {
+          url: webhook.webhook_url,
+          payload: {
+            type: 'weekly_report',
+            report: {
+              title: '📊 Relatório Semanal - Teste',
+              message: `Bom dia,
 
 Segue o relatório geral de desempenho da semana passada (Segunda a Domingo)
 
@@ -145,22 +143,27 @@ Produto: Teste de Integração
 📈 Custo por mensagens: R$ 3,00
 
 Vamo pra cima!! 🚀`,
-            product_name: 'Teste de Integração',
-            total_investment: 1500,
-            messages_count: 500,
-            cost_per_message: 3,
-          },
-          timestamp: new Date().toISOString(),
-        }),
+              product_name: 'Teste de Integração',
+              total_investment: 1500,
+              messages_count: 500,
+              cost_per_message: 3,
+            },
+            timestamp: new Date().toISOString(),
+          }
+        }
       });
 
-      if (response.ok) {
+      if (error) throw error;
+
+      if (data.success) {
         toast.success('Relatório de teste enviado com sucesso!');
       } else {
-        toast.error(`Erro no webhook: ${response.status}`);
+        toast.error(`Erro no webhook: ${data.status}`);
       }
-    } catch (error) {
-      toast.error('Erro ao testar webhook. Verifique a URL.');
+    } catch (error: any) {
+      console.error('Webhook test error detail:', error);
+      const errorMessage = error.message || (error.statusText ? `${error.status}: ${error.statusText}` : 'Erro desconhecido');
+      toast.error(`Falha na conexão: ${errorMessage}. Verifique se a Edge Function está implantada ou se a URL está correta.`);
     } finally {
       setTestingId(null);
     }

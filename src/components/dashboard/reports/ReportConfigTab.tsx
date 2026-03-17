@@ -69,6 +69,12 @@ export function ReportConfigTab() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      
+      if (!data || !data.summary) {
+        toast.error('O servidor retornou uma resposta inválida. Verifique se as Edge Functions foram implantadas.');
+        return;
+      }
+
       if (data.summary.totalAccounts === 1) {
         toast.success(`Relatório gerado com sucesso!`, {
           description: `Período: ${data.summary.periodStart} a ${data.summary.periodEnd}`
