@@ -8,6 +8,9 @@ export interface Client {
     name: string;
     whatsapp_group_link: string | null;
     enable_balance_check: boolean;
+    report_enabled: boolean;
+    report_day: string;
+    report_time: string;
     manager_id: string | null;
     created_at: string;
     updated_at: string;

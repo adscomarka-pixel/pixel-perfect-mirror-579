@@ -66,7 +66,7 @@ const Clients = () => {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-    const [newClient, setNewClient] = useState({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "" });
+    const [newClient, setNewClient] = useState({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "", report_enabled: true, report_day: "monday", report_time: "09:00" });
     const [editingClient, setEditingClient] = useState<Client | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -93,6 +93,9 @@ const Clients = () => {
             name: editingClient.name,
             whatsapp_group_link: editingClient.whatsapp_group_link,
             enable_balance_check: editingClient.enable_balance_check,
+            report_enabled: editingClient.report_enabled,
+            report_day: editingClient.report_day,
+            report_time: editingClient.report_time,
             manager_id: editingClient.manager_id === "none" ? null : editingClient.manager_id
         }, {
             onSuccess: () => {
@@ -119,7 +122,7 @@ const Clients = () => {
         createClient.mutate(clientData, {
             onSuccess: () => {
                 setIsCreateDialogOpen(false);
-                setNewClient({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "" });
+                setNewClient({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "", report_enabled: true, report_day: "monday", report_time: "09:00" });
             }
         });
     };
@@ -212,6 +215,52 @@ const Clients = () => {
                                     onCheckedChange={(checked) => setNewClient({ ...newClient, enable_balance_check: checked })}
                                 />
                             </div>
+                            
+                            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <Label>Relatório Semanal</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Enviar resumo de gastos e saldo no grupo
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={newClient.report_enabled}
+                                    onCheckedChange={(checked) => setNewClient({ ...newClient, report_enabled: checked })}
+                                />
+                            </div>
+
+                            {newClient.report_enabled && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="report-day">Dia do Relatório</Label>
+                                        <Select
+                                            value={newClient.report_day}
+                                            onValueChange={(val) => setNewClient({ ...newClient, report_day: val })}
+                                        >
+                                            <SelectTrigger id="report-day">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="monday">Segunda-feira</SelectItem>
+                                                <SelectItem value="tuesday">Terça-feira</SelectItem>
+                                                <SelectItem value="wednesday">Quarta-feira</SelectItem>
+                                                <SelectItem value="thursday">Quinta-feira</SelectItem>
+                                                <SelectItem value="friday">Sexta-feira</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="report-time">Horário (ex: 09:00)</Label>
+                                        <Input
+                                            id="report-time"
+                                            type="time"
+                                            value={newClient.report_time}
+                                            onChange={(e) => setNewClient({ ...newClient, report_time: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancelar</Button>
@@ -412,6 +461,16 @@ const Clients = () => {
                                             onCheckedChange={(checked) => updateClient.mutate({ id: client.id, enable_balance_check: checked })}
                                         />
                                     </div>
+                                    <div className="pt-2 flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <Label className="text-sm">Relatório Semanal</Label>
+                                            <p className="text-[10px] text-muted-foreground">{client.report_day === 'monday' ? 'Segunda' : client.report_day === 'tuesday' ? 'Terça' : client.report_day === 'wednesday' ? 'Quarta' : client.report_day === 'thursday' ? 'Quinta' : 'Sexta'} às {client.report_time}</p>
+                                        </div>
+                                        <Switch
+                                            checked={client.report_enabled}
+                                            onCheckedChange={(checked) => updateClient.mutate({ id: client.id, report_enabled: checked })}
+                                        />
+                                    </div>
                                 </CardContent>
                             </Card>
                         );
@@ -580,6 +639,52 @@ const Clients = () => {
                                     onCheckedChange={(checked) => setEditingClient({ ...editingClient, enable_balance_check: checked })}
                                 />
                             </div>
+
+                            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <Label>Relatório Semanal</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Enviar resumo de gastos e saldo no grupo
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={editingClient.report_enabled}
+                                    onCheckedChange={(checked) => setEditingClient({ ...editingClient, report_enabled: checked })}
+                                />
+                            </div>
+
+                            {editingClient.report_enabled && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-report-day">Dia do Relatório</Label>
+                                        <Select
+                                            value={editingClient.report_day}
+                                            onValueChange={(val) => setEditingClient({ ...editingClient, report_day: val })}
+                                        >
+                                            <SelectTrigger id="edit-report-day">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="monday">Segunda-feira</SelectItem>
+                                                <SelectItem value="tuesday">Terça-feira</SelectItem>
+                                                <SelectItem value="wednesday">Quarta-feira</SelectItem>
+                                                <SelectItem value="thursday">Quinta-feira</SelectItem>
+                                                <SelectItem value="friday">Sexta-feira</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-report-time">Horário (ex: 09:00)</Label>
+                                        <Input
+                                            id="edit-report-time"
+                                            type="time"
+                                            value={editingClient.report_time}
+                                            onChange={(e) => setEditingClient({ ...editingClient, report_time: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     )}
                     <DialogFooter>
