@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, FileText, Home, Key, Link2, LogOut, Settings, Users } from "lucide-react";
+import { BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, FileText, Home, Key, Link2, LogOut, MessageSquareText, Settings, Users } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -16,6 +16,7 @@ const baseNavigation = [
   { name: "Contas", href: "/dashboard/accounts", icon: Link2 },
   { name: "Tokens", href: "/dashboard/tokens", icon: Key },
   { name: "Clientes", href: "/dashboard/clients", icon: Users },
+  { name: "Resumo de Grupo", href: "/dashboard/group-summary", icon: MessageSquareText },
   { name: "Guia de Uso", href: "/dashboard/guide", icon: BookOpen },
   { name: "Configurações", href: "/dashboard/settings", icon: Settings },
 ];

@@ -212,6 +212,50 @@ export type Database = {
           },
         ]
       }
+      group_summaries: {
+        Row: {
+          id: string
+          user_id: string
+          client_id: string
+          period_days: number
+          period_start: string
+          period_end: string
+          total_messages: number | null
+          summary: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          client_id: string
+          period_days: number
+          period_start: string
+          period_end: string
+          total_messages?: number | null
+          summary: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          client_id?: string
+          period_days?: number
+          period_start?: string
+          period_end?: string
+          total_messages?: number | null
+          summary?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_summaries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_settings: {
         Row: {
           balance_alert_days: string[] | null
@@ -229,6 +273,7 @@ export type Database = {
           user_id: string
           weekly_report_enabled: boolean | null
           whatsapp_group_id: string | null
+          n8n_summary_webhook_url: string | null
         }
         Insert: {
           balance_alert_days?: string[] | null
@@ -246,6 +291,7 @@ export type Database = {
           user_id: string
           weekly_report_enabled?: boolean | null
           whatsapp_group_id?: string | null
+          n8n_summary_webhook_url?: string | null
         }
         Update: {
           balance_alert_days?: string[] | null
@@ -263,6 +309,7 @@ export type Database = {
           user_id?: string
           weekly_report_enabled?: boolean | null
           whatsapp_group_id?: string | null
+          n8n_summary_webhook_url?: string | null
         }
         Relationships: []
       }

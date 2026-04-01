@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Bell, Calendar, FileText, Loader2, Mail, Save, User, Users, Plus, Trash2 } from "lucide-react";
+import { Bell, Calendar, FileText, Loader2, Mail, Save, User, Users, Plus, Trash2, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +87,7 @@ const Settings = () => {
   const [defaultMinBalance, setDefaultMinBalance] = useState("500");
   const [balanceAlertDays, setBalanceAlertDays] = useState<string[]>(WEEKDAYS.map(d => d.value));
   const [balanceAlertTime, setBalanceAlertTime] = useState("09:00");
+  const [n8nWebhookUrl, setN8nWebhookUrl] = useState("");
 
   // Fetch profile data
   const { data: profile, isLoading: loadingProfile } = useQuery({
@@ -154,6 +155,7 @@ const Settings = () => {
       if (alertTime) {
         setBalanceAlertTime(alertTime);
       }
+      setN8nWebhookUrl((notificationSettings as any).n8n_summary_webhook_url || "");
     }
   }, [notificationSettings]);
 
@@ -188,6 +190,7 @@ const Settings = () => {
           default_min_balance: parseFloat(defaultMinBalance) || 500,
           balance_alert_days: balanceAlertDays,
           balance_alert_time: balanceAlertTime,
+          n8n_summary_webhook_url: n8nWebhookUrl,
           updated_at: new Date().toISOString(),
         } as any, { onConflict: 'user_id' });
 
@@ -535,6 +538,34 @@ const Settings = () => {
               />
               <p className="text-xs text-muted-foreground">
                 Este valor será usado como padrão para novas contas conectadas
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* n8n Integration Settings */}
+        <div className="bg-card rounded-xl border border-border shadow-card p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-emerald-500" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">Integração n8n (Resumo de Grupo)</h3>
+              <p className="text-sm text-muted-foreground">Configure a URL do seu webhook n8n para processar os resumos</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="n8nWebhookUrl">URL do Webhook de Resumo</Label>
+              <Input
+                id="n8nWebhookUrl"
+                type="url"
+                value={n8nWebhookUrl}
+                onChange={(e) => setN8nWebhookUrl(e.target.value)}
+                placeholder="https://sua-instancia-n8n.com/webhook/..."
+              />
+              <p className="text-xs text-muted-foreground">
+                Esta URL receberá os dados do cliente e período para gerar o resumo via IA.
               </p>
             </div>
           </div>

@@ -13,6 +13,7 @@ import Tokens from "./pages/Tokens";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import Clients from "./pages/Clients";
+import GroupSummary from "./pages/GroupSummary";
 import Guide from "./pages/Guide";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -89,6 +90,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Clients />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/group-summary"
+            element={
+              <ProtectedRoute>
+                <GroupSummary />
               </ProtectedRoute>
             }
           />
