@@ -69,6 +69,8 @@ const Clients = () => {
     const [newClient, setNewClient] = useState({ name: "", whatsapp_group_link: "", enable_balance_check: true, manager_id: "", report_enabled: true, report_day: "monday", report_time: "09:00" });
     const [editingClient, setEditingClient] = useState<Client | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [managerFilter, setManagerFilter] = useState<string>("all");
 
     // Link account state
     const [linkPlatform, setLinkPlatform] = useState<"meta" | "google">("meta");
@@ -273,6 +275,32 @@ const Clients = () => {
                 </Dialog>
             </div>
 
+            <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
+                <div className="relative flex-1 w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Pesquisar por nome do cliente..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
+                <div className="w-full md:w-auto min-w-[200px]">
+                    <Select value={managerFilter} onValueChange={setManagerFilter}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Filtrar por Gestor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos os Gestores</SelectItem>
+                            <SelectItem value="none">Sem Gestor</SelectItem>
+                            {managers.map((m) => (
+                                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center h-64">
                     <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
@@ -293,7 +321,17 @@ const Clients = () => {
                 </Card>
             ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    {clients.map((client) => {
+                    {clients
+                        .filter(client => {
+                            const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase());
+                            const matchesManager = managerFilter === "all" 
+                                ? true 
+                                : managerFilter === "none" 
+                                    ? !client.manager_id 
+                                    : client.manager_id === managerFilter;
+                            return matchesSearch && matchesManager;
+                        })
+                        .map((client) => {
                         const clientAccounts = getClientAccounts(client.id);
                         return (
                             <Card key={client.id} className="overflow-hidden border-border/60 hover:border-primary/40 transition-colors shadow-sm">
