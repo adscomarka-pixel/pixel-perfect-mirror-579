@@ -59,7 +59,8 @@ Deno.serve(async (req) => {
     const { data: allAccountsWithTokens, error: fetchError } = await supabase
       .from('ad_accounts')
       .select('*')
-      .eq('status', 'active')
+      // Do not exclude disconnected rows here: a valid credential may recover
+      // an account whose last API status was disconnected.
 
     if (fetchError) throw fetchError
 
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
     // Fetch DB info for all accounts to use in alerts after sync
     const { data: dbAccounts } = await supabase
       .from('ad_accounts')
-      .select('id, account_id, client_id, min_balance_alert, alert_enabled, clients(enable_balance_check)')
+      .select('id, account_id, platform, client_id, min_balance_alert, alert_enabled, clients(enable_balance_check)')
 
     // ---------------------------------------------------------
     // META SYNC

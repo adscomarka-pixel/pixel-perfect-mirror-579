@@ -117,7 +117,9 @@ export function useAdAccounts() {
   const syncAllGoogleAccounts = useMutation({
     mutationFn: async () => {
       const response = await supabase.functions.invoke('sync-google-balance', {
-        body: {}
+        // Full refresh is required to discover newly accessible customer
+        // accounts so they appear in the client-link dropdown.
+        body: { fullRefresh: true }
       });
 
       if (response.error) {
